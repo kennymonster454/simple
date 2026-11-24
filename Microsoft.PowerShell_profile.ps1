@@ -431,8 +431,9 @@ function simple {
                         throw "The temporary update file failed its syntax check."
                     }
 
-                    # Replace the profile only after every check passes; do not create a permanent backup.
-                    Copy-Item -LiteralPath $tempPath -Destination $profilePath -Force -ErrorAction Stop
+                    # Delete the old profile, then move the verified new profile into its place.
+                    Remove-Item -LiteralPath $profilePath -Force -ErrorAction Stop
+                    Move-Item -LiteralPath $tempPath -Destination $profilePath -ErrorAction Stop
 
                     # Confirm the installed file matches the downloaded file.
                     $finalCode = [System.IO.File]::ReadAllText($profilePath)
