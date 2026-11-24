@@ -1,6 +1,6 @@
 # SIMPLE LANGUAGE
 # SIMPLE COMMAND SYSTEM - CREATED BY KENNY
-# VERSION 2.8
+# VERSION 2.9
 function simple {
     param(
         [Parameter(ValueFromRemainingArguments=$true)]
@@ -109,7 +109,9 @@ function simple {
             $tempPath = "$profilePath.download"
             $backupPath = "$profilePath.backup"
             try {
-                $response = Invoke-WebRequest -Uri $updateUrl -UseBasicParsing -ErrorAction Stop
+                $cacheBuster = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+                $requestUrl = "$updateUrl?nocache=$cacheBuster"
+                $response = Invoke-WebRequest -Uri $requestUrl -UseBasicParsing -Headers @{ "Cache-Control" = "no-cache"; "Pragma" = "no-cache" } -ErrorAction Stop
                 $newCode = [string]$response.Content
                 if ([string]::IsNullOrWhiteSpace($newCode)) { throw "The downloaded file is empty." }
                 if ($newCode -notmatch 'function\s+simple') { throw "The downloaded file does not contain the Simple command." }
