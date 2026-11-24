@@ -24,6 +24,7 @@ function simple {
         Write-Host "simple localhost stop <port>"
         Write-Host "simple localhost status <port>"
         Write-Host "simple update"
+        Write-Host "simple update localhost <port>"
         return
     }
 
@@ -94,6 +95,17 @@ function simple {
         }
 
         "update" {
+            $startLocalhost = $false
+            $startPort = 0
+            if ($SimpleArgs.Count -ge 3 -and $SimpleArgs[1].ToLower() -eq "localhost") {
+                if (![int]::TryParse($SimpleArgs[2], [ref]$startPort) -or $startPort -lt 1 -or $startPort -gt 65535) {
+                    Write-Host "Usage: simple update localhost <port>"
+                    return
+                }
+                $startLocalhost = $true
+            }
+
+            $updateSucceeded = $false
             Write-Host "Checking for Simple updates..."
             $tempPath = "$profilePath.download"
             $backupPath = "$profilePath.backup"
@@ -116,19 +128,26 @@ function simple {
                 $onlineVersion = $onlineMatch.Groups[1].Value.Trim()
                 if ($installedVersion -eq $onlineVersion) {
                     Write-Host "Simple $installedVersion is already installed. No update is needed."
-                    return
+                    $updateSucceeded = $true
                 }
-                [System.IO.File]::WriteAllText($tempPath, $newCode, ([System.Text.UTF8Encoding]::new($true)))
-                Copy-Item -LiteralPath $profilePath -Destination $backupPath -Force -ErrorAction Stop
-                Move-Item -LiteralPath $tempPath -Destination $profilePath -Force -ErrorAction Stop
-                . $profilePath
-                Write-Host "Simple updated from $installedVersion to $onlineVersion!"
-                Write-Host "Backup: $backupPath"
+                else {
+                    [System.IO.File]::WriteAllText($tempPath, $newCode, ([System.Text.UTF8Encoding]::new($true)))
+                    Copy-Item -LiteralPath $profilePath -Destination $backupPath -Force -ErrorAction Stop
+                    Move-Item -LiteralPath $tempPath -Destination $profilePath -Force -ErrorAction Stop
+                    . $profilePath
+                    Write-Host "Simple updated from $installedVersion to $onlineVersion!"
+                    Write-Host "Backup: $backupPath"
+                    $updateSucceeded = $true
+                }
             }
             catch {
                 Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
                 Write-Host "Update failed: $($_.Exception.Message)"
                 Write-Host "Your existing Simple installation was not replaced unless installation had already completed."
+            }
+
+            if ($updateSucceeded -and $startLocalhost) {
+                simple localhost start $startPort
             }
         }
 
