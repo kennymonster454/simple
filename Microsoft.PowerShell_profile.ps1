@@ -1,6 +1,6 @@
 # SIMPLE LANGUAGE
 # SIMPLE COMMAND SYSTEM - CREATED BY KENNY
-# VERSION 2.6
+# VERSION 2.7
 
 function simple {
     param(
@@ -126,8 +126,11 @@ function simple {
                 if (!$installedMatch.Success) { throw "The installed SIMPLE version could not be identified." }
                 $installedVersion = $installedMatch.Groups[1].Value.Trim()
                 $onlineVersion = $onlineMatch.Groups[1].Value.Trim()
-                if ($installedVersion -eq $onlineVersion) {
-                    Write-Host "Simple $installedVersion is already installed. No update is needed."
+                $installedCompare = $installedCode.Replace("`r`n", "`n").TrimEnd()
+                $onlineCompare = $newCode.Replace("`r`n", "`n").TrimEnd()
+
+                if ($installedCompare -ceq $onlineCompare) {
+                    Write-Host "Simple $installedVersion is already fully up to date."
                     $updateSucceeded = $true
                 }
                 else {
