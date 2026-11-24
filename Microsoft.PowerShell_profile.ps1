@@ -202,11 +202,134 @@ function simple {
 
                 Remove-Item $logFile -Force -ErrorAction SilentlyContinue
 
+                # The localhost server is part of SIMPLE itself.
+                # It runs in a hidden PowerShell process so it can keep serving
+                # pages after this SIMPLE command returns.
+
+                $serverCode = @'
+$ErrorActionPreference = "Stop"
+
+try {
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $Port)
+    $listener.Start()
+    Add-Content -Path $LogPath -Value "READY $Port"
+
+    while ($true) {
+        $client = $listener.AcceptTcpClient()
+        $reader = $null
+
+        try {
+            $stream = $client.GetStream()
+            $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::ASCII, $false, 1024, $true)
+
+            $requestLine = $reader.ReadLine()
+            if ([string]::IsNullOrWhiteSpace($requestLine)) {
+                continue
+            }
+
+            while ($true) {
+                $headerLine = $reader.ReadLine()
+                if ($null -eq $headerLine -or $headerLine -eq "") { break }
+            }
+
+            if ($HtmlPath -ne "-" -and (Test-Path -LiteralPath $HtmlPath -PathType Leaf)) {
+                $body = [System.IO.File]::ReadAllText($HtmlPath)
+            }
+            else {
+                $body = @"
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simple Documentation</title>
+<style>
+body { font-family: Segoe UI, Arial, sans-serif; max-width: 850px; margin: 48px auto; padding: 0 22px; line-height: 1.6; color: #202124; }
+h1 { margin-bottom: 4px; } .sub { color: #666; margin-top: 0; }
+code { background: #f1f3f4; padding: 3px 6px; border-radius: 4px; }
+section { margin-top: 28px; } #updates { padding: 12px 16px; background: #f4f6f8; border-radius: 8px; }
+</style>
+</head>
+<body>
+<h1>Simple Documentation</h1>
+<p class="sub">A small command language created by Kenny.</p>
+<section>
+<h2>Commands</h2>
+<p><code>simple print &lt;text&gt;</code> — prints text.</p>
+<p><code>simple vector ip &lt;address&gt;</code> — stores the Vector IP address.</p>
+<p><code>simple open window &lt;HTML file path&gt;</code> — opens an HTML file in a Simple window.</p>
+<p><code>simple localhost start &lt;port&gt;</code> — starts this localhost server.</p>
+<p><code>simple localhost stop &lt;port&gt;</code> — stops a localhost server.</p>
+<p><code>simple localhost status &lt;port&gt;</code> — checks a localhost server.</p>
+<p><code>simple update</code> — updates the SIMPLE command system.</p>
+</section>
+<section>
+<h2>Simple Updates</h2>
+<div id="updates">Checking for update information...</div>
+</section>
+<script>
+(async function () {
+  const panel = document.getElementById("updates");
+  try {
+    const response = await fetch("https://raw.githubusercontent.com/kennymonster454/simple/main/update.json", { cache: "no-store" });
+    if (!response.ok) throw new Error("No update information is published yet.");
+    const data = await response.json();
+    if (!data.version || !Array.isArray(data.updates)) throw new Error("The update information file is invalid.");
+    const heading = document.createElement("strong");
+    heading.textContent = "Latest SIMPLE version: " + data.version;
+    panel.replaceChildren(heading);
+    data.updates.forEach(function (item) {
+      const entry = document.createElement("p");
+      entry.textContent = item.date ? item.date + " — " + item.info : item.info;
+      panel.appendChild(entry);
+    });
+  } catch (error) {
+    panel.textContent = error.message;
+  }
+})();
+</script>
+</body>
+</html>
+"@
+            }
+
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+            $crlf = [string][char]13 + [string][char]10
+            $header = "HTTP/1.1 200 OK" + $crlf + "Content-Type: text/html; charset=utf-8" + $crlf + "Content-Length: $($bytes.Length)" + $crlf + "Connection: close" + $crlf + $crlf
+            $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($header)
+
+            $stream.Write($headerBytes, 0, $headerBytes.Length)
+            $stream.Write($bytes, 0, $bytes.Length)
+            $stream.Flush()
+        }
+        catch {
+            Add-Content -Path $LogPath -Value "REQUEST ERROR: $($_.Exception.Message)"
+        }
+        finally {
+            if ($reader) { $reader.Dispose() }
+            $client.Close()
+        }
+    }
+}
+catch {
+    Add-Content -Path $LogPath -Value "SERVER ERROR: $($_.Exception.Message)"
+}
+finally {
+    if ($listener) { $listener.Stop() }
+}
+'@
+
+                $htmlEncoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($htmlPath))
+                $logEncoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($logFile))
+                $serverCode += [Environment]::NewLine + ('$Port = ' + $port)
+                $serverCode += [Environment]::NewLine + ('$HtmlPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''{0}''))' -f $htmlEncoded)
+                $serverCode += [Environment]::NewLine + ('$LogPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''{0}''))' -f $logEncoded)
+
+                $encodedServer = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($serverCode))
                 $engine = Join-Path $PSHOME "powershell.exe"
-                $arguments = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" {1} "{2}" "{3}"' -f $serverPath, $port, $htmlPath, $logFile
 
                 try {
-                    $process = Start-Process -FilePath $engine -ArgumentList $arguments -PassThru -WindowStyle Hidden
+                    $process = Start-Process -FilePath $engine -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand $encodedServer" -PassThru -WindowStyle Hidden
                 }
                 catch {
                     Write-Host "Could not launch server: $($_.Exception.Message)"
