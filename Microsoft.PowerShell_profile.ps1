@@ -1,6 +1,6 @@
 # SIMPLE LANGUAGE
 # SIMPLE COMMAND SYSTEM - CREATED BY KENNY
-# VERSION 3.5.5
+# VERSION 3.5.6
 function simple {
     param(
         [Parameter(ValueFromRemainingArguments=$true)]
@@ -146,7 +146,7 @@ reset();requestAnimationFrame(frame);
     if ($english -match '^(?i)(help|show commands)$') {
         Write-Host ""
         Write-Host "╔══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-        Write-Host "║                         SIMPLE COMMANDS 3.5.5                        ║" -ForegroundColor Cyan
+        Write-Host "║                         SIMPLE COMMANDS 3.5.6                        ║" -ForegroundColor Cyan
         Write-Host "╠══════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
         Write-Host "║  BASIC                                                                 ║"
         Write-Host "║  simple print <text>                                                   ║"
