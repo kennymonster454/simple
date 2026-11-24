@@ -903,11 +903,23 @@ reset();requestAnimationFrame(frame);
                 if(!$ready){
                     $state.StopRequested=$true
                     if($state.Listener){try{$state.Listener.Stop()}catch{}}
-                    try{$powerShell.EndInvoke($async)}catch{}
+                    try {
+                        if($async.IsCompleted){ [void]$powerShell.EndInvoke($async) }
+                    } catch {
+                        Add-Content -LiteralPath $logPath -Value ("[{0}] START ERROR {1}" -f (Get-Date -Format o), $_.Exception.ToString())
+                    }
+                    if($powerShell.Streams.Error.Count -gt 0){
+                        foreach($serverError in $powerShell.Streams.Error){
+                            Add-Content -LiteralPath $logPath -Value ("[{0}] SERVER ERROR {1}" -f (Get-Date -Format o), $serverError.ToString())
+                        }
+                    }
+                    if(!$async.IsCompleted -and $state.Listener){
+                        try{$state.Listener.Stop()}catch{}
+                    }
                     $powerShell.Dispose();$runspace.Dispose()
-                    Add-Content -LiteralPath $logPath -Value ("[{0}] START FAILED" -f (Get-Date -Format o))
-                    Write-Host "Server failed to start. Log: $logPath"
-                    if(Test-Path -LiteralPath $logPath){Get-Content -LiteralPath $logPath -Tail 12}
+                    Add-Content -LiteralPath $logPath -Value ("[{0}] START FAILED - listener did not become ready" -f (Get-Date -Format o))
+                    Write-Host "Server failed to start. Details saved in: $logPath"
+                    if(Test-Path -LiteralPath $logPath){Get-Content -LiteralPath $logPath -Tail 20}
                     return
                 }
                 $global:SimpleServers[$port]=@{PowerShell=$powerShell;Runspace=$runspace;Async=$async;State=$state;LogPath=$logPath}
