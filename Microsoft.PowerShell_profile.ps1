@@ -112,7 +112,8 @@ function simple {
                     foreach ($entry in $history) {
                         if (!$entry.sha) { continue }
                         $shortSha = ([string]$entry.sha).Substring(0, 7)
-                        $message = ([string]$entry.commit.message -split [char]10)[0]
+                        $message = [string]$entry.commit.message
+                        $message = ($message -split "`n", 2)[0]
                         $date = ([DateTime]$entry.commit.author.date).ToLocalTime().ToString("yyyy-MM-dd HH:mm")
                         $choices += [PSCustomObject]@{
                             Sha = [string]$entry.sha
@@ -199,7 +200,6 @@ function simple {
             Write-Host "Checking for Simple updates..."
 
             $tempPath = "$profilePath.simple-update.tmp"
-            $backupPath = "$profilePath.backup"
             $updateSucceeded = $false
 
             try {
@@ -262,20 +262,17 @@ function simple {
                         throw "The temporary update file failed its syntax check."
                     }
 
-                    # Keep a backup, then replace the profile only after every check passes.
-                    Copy-Item -LiteralPath $profilePath -Destination $backupPath -Force -ErrorAction Stop
-                    [System.IO.File]::Copy($tempPath, $profilePath, $true)
+                    # Replace the profile only after every check passes; do not create a permanent backup.
+                    [System.IO.File]::Replace($tempPath, $profilePath, $null)
 
                     # Confirm the installed file matches the downloaded file.
                     $finalCode = [System.IO.File]::ReadAllText($profilePath)
                     if ($finalCode.Replace("`r`n", "`n").TrimEnd() -cne $downloadCompare) {
-                        [System.IO.File]::Copy($backupPath, $profilePath, $true)
-                        throw "The installed profile did not match the download. The backup was restored."
+                        throw "The installed profile did not match the verified download."
                     }
 
                     . $profilePath
                     Write-Host "Simple updated from $installedVersion to $onlineVersion!"
-                    Write-Host "Backup saved to: $backupPath"
                     $updateSucceeded = $true
                 }
             }
