@@ -321,9 +321,10 @@ finally {
 
                 $htmlEncoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($htmlPath))
                 $logEncoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($logFile))
-                $serverCode += [Environment]::NewLine + ('$Port = ' + $port)
-                $serverCode += [Environment]::NewLine + ('$HtmlPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''{0}''))' -f $htmlEncoded)
-                $serverCode += [Environment]::NewLine + ('$LogPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''{0}''))' -f $logEncoded)
+                $serverCode = ('$Port = ' + $port) + [Environment]::NewLine +
+                    ('$HtmlPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''{0}''))' -f $htmlEncoded) + [Environment]::NewLine +
+                    ('$LogPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''{0}''))' -f $logEncoded) + [Environment]::NewLine +
+                    $serverCode
 
                 $encodedServer = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($serverCode))
                 $engine = Join-Path $PSHOME "powershell.exe"
