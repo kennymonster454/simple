@@ -1,6 +1,6 @@
 # SIMPLE LANGUAGE
 # SIMPLE COMMAND SYSTEM - CREATED BY KENNY
-# VERSION 2.9
+# VERSION 3.0
 function simple {
     param(
         [Parameter(ValueFromRemainingArguments=$true)]
@@ -96,6 +96,7 @@ function simple {
         "update" {
             $startLocalhost = $false
             $startPort = 0
+
             if ($SimpleArgs.Count -ge 3 -and $SimpleArgs[1].ToLower() -eq "localhost") {
                 if (![int]::TryParse($SimpleArgs[2], [ref]$startPort) -or $startPort -lt 1 -or $startPort -gt 65535) {
                     Write-Host "Usage: simple update localhost <port>"
@@ -104,57 +105,101 @@ function simple {
                 $startLocalhost = $true
             }
 
-            $updateSucceeded = $false
             Write-Host "Checking for Simple updates..."
-            $tempPath = "$profilePath.download"
-            $backupPath = "$profilePath.backup"
-            try {
-                $cacheBuster = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-                $requestUrl = "$updateUrl?nocache=$cacheBuster"
-                $response = Invoke-WebRequest -Uri $requestUrl -UseBasicParsing -Headers @{ "Cache-Control" = "no-cache"; "Pragma" = "no-cache" } -ErrorAction Stop
-                $newCode = [string]$response.Content
-                if ([string]::IsNullOrWhiteSpace($newCode)) { throw "The downloaded file is empty." }
-                if ($newCode -notmatch 'function\s+simple') { throw "The downloaded file does not contain the Simple command." }
-                $parseTokens = $null
-                $parseErrors = $null
-                [void][System.Management.Automation.Language.Parser]::ParseInput($newCode, [ref]$parseTokens, [ref]$parseErrors)
-                if ($parseErrors.Count -gt 0) { throw "GitHub returned invalid PowerShell code: $($parseErrors[0].Message)" }
-                $onlineMatch = [regex]::Match($newCode, '(?m)^#\s*VERSION\s+(.+?)\s*$')
-                if (!$onlineMatch.Success) { throw "The GitHub SIMPLE version could not be identified." }
-                if (!(Test-Path -LiteralPath $profilePath -PathType Leaf)) { throw "The installed SIMPLE profile was not found." }
-                $installedCode = Get-Content -LiteralPath $profilePath -Raw -ErrorAction Stop
-                $installedMatch = [regex]::Match($installedCode, '(?m)^#\s*VERSION\s+(.+?)\s*$')
-                if (!$installedMatch.Success) { throw "The installed SIMPLE version could not be identified." }
-                $installedVersion = $installedMatch.Groups[1].Value.Trim()
-                $onlineVersion = $onlineMatch.Groups[1].Value.Trim()
-                $installedCompare = $installedCode.Replace("`r`n", "`n").TrimEnd()
-                $onlineCompare = $newCode.Replace("`r`n", "`n").TrimEnd()
 
-                if ($installedCompare -ceq $onlineCompare) {
-                    Write-Host "Simple $installedVersion is already fully up to date."
+            $tempPath = "$profilePath.simple-update.tmp"
+            $backupPath = "$profilePath.backup"
+            $updateSucceeded = $false
+
+            try {
+                # Always request a fresh copy from GitHub.
+                $requestUrl = $updateUrl + "?simple_update=" + [Guid]::NewGuid().ToString("N")
+                $response = Invoke-WebRequest -Uri $requestUrl -UseBasicParsing -Headers @{
+                    "Cache-Control" = "no-cache, no-store"
+                    "Pragma" = "no-cache"
+                } -ErrorAction Stop
+
+                $newCode = [string]$response.Content
+                if ([string]::IsNullOrWhiteSpace($newCode)) {
+                    throw "GitHub returned an empty file."
+                }
+
+                # Check that the download is actually a SIMPLE profile.
+                if ($newCode -notmatch '(?m)^#\s*VERSION\s+\S+' -or $newCode -notmatch '(?im)^function\s+simple\b') {
+                    throw "The downloaded file is not a valid SIMPLE profile."
+                }
+
+                $onlineMatch = [regex]::Match($newCode, '(?m)^#\s*VERSION\s+(.+?)\s*$')
+                $onlineVersion = $onlineMatch.Groups[1].Value.Trim()
+
+                # Parse the entire download before touching the installed profile.
+                $tokens = $null
+                $parseErrors = $null
+                [void][System.Management.Automation.Language.Parser]::ParseInput($newCode, [ref]$tokens, [ref]$parseErrors)
+                if ($parseErrors.Count -gt 0) {
+                    throw "The GitHub profile has a PowerShell syntax error: $($parseErrors[0].Message)"
+                }
+
+                if (!(Test-Path -LiteralPath $profilePath -PathType Leaf)) {
+                    throw "The installed PowerShell profile was not found: $profilePath"
+                }
+
+                $installedCode = [System.IO.File]::ReadAllText($profilePath)
+                $installedMatch = [regex]::Match($installedCode, '(?m)^#\s*VERSION\s+(.+?)\s*$')
+                $installedVersion = if ($installedMatch.Success) { $installedMatch.Groups[1].Value.Trim() } else { "unknown" }
+
+                # Compare the complete contents, not just the version label.
+                $installedCompare = $installedCode.Replace("`r`n", "`n").TrimEnd()
+                $downloadCompare = $newCode.Replace("`r`n", "`n").TrimEnd()
+
+                if ($installedCompare -ceq $downloadCompare) {
+                    Write-Host "Simple $installedVersion is already up to date."
                     $updateSucceeded = $true
                 }
                 else {
-                    [System.IO.File]::WriteAllText($tempPath, $newCode, ([System.Text.UTF8Encoding]::new($true)))
+                    # Write and verify a temporary copy first.
+                    [System.IO.File]::WriteAllText($tempPath, $newCode, (New-Object System.Text.UTF8Encoding($true)))
+                    $tempCode = [System.IO.File]::ReadAllText($tempPath)
+                    if ($tempCode.Replace("`r`n", "`n").TrimEnd() -cne $downloadCompare) {
+                        throw "The temporary update file did not pass verification."
+                    }
+
+                    $tempTokens = $null
+                    $tempErrors = $null
+                    [void][System.Management.Automation.Language.Parser]::ParseInput($tempCode, [ref]$tempTokens, [ref]$tempErrors)
+                    if ($tempErrors.Count -gt 0) {
+                        throw "The temporary update file failed its syntax check."
+                    }
+
+                    # Keep a backup, then replace the profile only after every check passes.
                     Copy-Item -LiteralPath $profilePath -Destination $backupPath -Force -ErrorAction Stop
-                    Move-Item -LiteralPath $tempPath -Destination $profilePath -Force -ErrorAction Stop
+                    [System.IO.File]::Copy($tempPath, $profilePath, $true)
+
+                    # Confirm the installed file matches the downloaded file.
+                    $finalCode = [System.IO.File]::ReadAllText($profilePath)
+                    if ($finalCode.Replace("`r`n", "`n").TrimEnd() -cne $downloadCompare) {
+                        [System.IO.File]::Copy($backupPath, $profilePath, $true)
+                        throw "The installed profile did not match the download. The backup was restored."
+                    }
+
                     . $profilePath
                     Write-Host "Simple updated from $installedVersion to $onlineVersion!"
-                    Write-Host "Backup: $backupPath"
+                    Write-Host "Backup saved to: $backupPath"
                     $updateSucceeded = $true
                 }
             }
             catch {
+                Write-Host "Update failed: $($_.Exception.Message)" -ForegroundColor Red
+                Write-Host "Your previous profile was kept."
+            }
+            finally {
                 Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
-                Write-Host "Update failed: $($_.Exception.Message)"
-                Write-Host "Your existing Simple installation was not replaced unless installation had already completed."
             }
 
             if ($updateSucceeded -and $startLocalhost) {
                 simple localhost start $startPort
             }
         }
-
         "localhost" {
             if ($SimpleArgs.Count -lt 3) {
                 Write-Host "Usage: simple localhost start/stop/status <port>"
