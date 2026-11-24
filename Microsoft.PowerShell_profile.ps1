@@ -14,25 +14,29 @@ function simple {
     $repository = "kennymonster454/simple"
     $updateUrl = "https://raw.githubusercontent.com/$repository/main/Microsoft.PowerShell_profile.ps1"
 
-    # SIMPLE English interpreter and .smp script runner (Windows PowerShell 5.1).
+    # SIMPLE .smp script runner (Windows PowerShell 5.1).
+    # .spe files continue to the SPE game runner below.
     if ($SimpleArgs.Count -ge 2 -and $SimpleArgs[0].ToLowerInvariant() -eq "run") {
         $scriptPath = ($SimpleArgs[1..($SimpleArgs.Count - 1)] -join " ").Trim().Trim('"')
-        if ([IO.Path]::GetExtension($scriptPath).ToLowerInvariant() -ne ".smp" -or !(Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
-            Write-Host "SMP file not found or not a .smp file."
+        $scriptExtension = [IO.Path]::GetExtension($scriptPath).ToLowerInvariant()
+        if ($scriptExtension -eq ".smp") {
+            if (!(Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
+                Write-Host "SMP file not found: $scriptPath"
+                return
+            }
+            try {
+                foreach ($scriptLine in [IO.File]::ReadAllLines((Resolve-Path -LiteralPath $scriptPath).Path)) {
+                    $trimmedLine = $scriptLine.Trim()
+                    if ($trimmedLine -and !$trimmedLine.StartsWith("#")) {
+                        Write-Host ("> " + $trimmedLine) -ForegroundColor DarkGray
+                        simple $trimmedLine
+                    }
+                }
+            } catch {
+                Write-Host "Could not run SMP file: $($_.Exception.Message)"
+            }
             return
         }
-        try {
-            foreach ($scriptLine in [IO.File]::ReadAllLines((Resolve-Path -LiteralPath $scriptPath).Path)) {
-                $trimmedLine = $scriptLine.Trim()
-                if ($trimmedLine -and !$trimmedLine.StartsWith("#")) {
-                    Write-Host ("> " + $trimmedLine) -ForegroundColor DarkGray
-                    simple $trimmedLine
-                }
-            }
-        } catch {
-            Write-Host "Could not run SMP file: $($_.Exception.Message)"
-        }
-        return
     }
 
     # Correct only command words at the start; never rewrite paths, names, or say-text.
