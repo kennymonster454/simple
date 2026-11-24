@@ -8,8 +8,9 @@ function simple {
         [string[]]$SimpleArgs
     )
 
-    $root = Join-Path $env:LOCALAPPDATA "Simple\Servers"
-    $serverPath = Join-Path $root "simple-server.ps1"
+    if ($null -eq $global:SimpleServers) {
+        $global:SimpleServers = @{}
+    }
     $profilePath = $PROFILE
     $repository = "kennymonster454/simple"
     $updateUrl = "https://raw.githubusercontent.com/$repository/main/Microsoft.PowerShell_profile.ps1"
@@ -127,18 +128,12 @@ function simple {
         }
 
         "localhost" {
-            if ($SimpleArgs.Count -lt 2) {
+            if ($SimpleArgs.Count -lt 3) {
                 Write-Host "Usage: simple localhost start/stop/status <port>"
                 return
             }
 
             $action = $SimpleArgs[1].ToLower()
-
-            if ($SimpleArgs.Count -lt 3) {
-                Write-Host "Please specify a port."
-                return
-            }
-
             $port = 0
 
             if (![int]::TryParse($SimpleArgs[2], [ref]$port) -or
@@ -147,18 +142,18 @@ function simple {
                 return
             }
 
-            $pidFile = Join-Path $root "$port.pid"
-            $logFile = Join-Path $root "$port.log"
-
             if ($action -eq "start") {
-
-                if (!(Test-Path $root)) {
-                    New-Item -ItemType Directory -Path $root -Force | Out-Null
+                if ($global:SimpleServers.ContainsKey($port)) {
+                    $existing = $global:SimpleServers[$port]
+                    if (!$existing.HasExited) {
+                        Write-Host "Simple localhost is already running on port $port."
+                        return
+                    }
+                    $global:SimpleServers.Remove($port)
                 }
 
                 $test = [System.Net.Sockets.TcpClient]::new()
                 $occupied = $false
-
                 try {
                     $test.Connect("127.0.0.1", $port)
                     $occupied = $true
@@ -177,22 +172,18 @@ function simple {
                 Write-Host "Do you want to add an HTML file or keep the default?"
                 Write-Host "Type 1 for HTML"
                 Write-Host "Type 2 for default"
-
                 $choice = Read-Host "SIMPLE"
                 $htmlPath = "-"
 
                 if ($choice -eq "1") {
-                    Add-Type -AssemblyName System.Windows.Forms
-
+                    Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
                     $dialog = New-Object System.Windows.Forms.OpenFileDialog
                     $dialog.Filter = "HTML files (*.html;*.htm)|*.html;*.htm"
                     $dialog.Title = "Select HTML file"
-
                     if ($dialog.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) {
                         Write-Host "Selection cancelled."
                         return
                     }
-
                     $htmlPath = $dialog.FileName
                 }
                 elseif ($choice -ne "2") {
@@ -200,43 +191,34 @@ function simple {
                     return
                 }
 
-                Remove-Item $logFile -Force -ErrorAction SilentlyContinue
-
-                # The localhost server is part of SIMPLE itself.
-                # It runs in a hidden PowerShell process so it can keep serving
-                # pages after this SIMPLE command returns.
-
+                # The server runs as a hidden child process. Its process object
+                # is tracked in memory; SIMPLE does not create server, PID, or log files.
                 $serverCode = @'
 $ErrorActionPreference = "Stop"
-
+$listener = $null
 try {
     $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $Port)
     $listener.Start()
-    Add-Content -Path $LogPath -Value "READY $Port"
 
     while ($true) {
         $client = $listener.AcceptTcpClient()
         $reader = $null
-
         try {
             $stream = $client.GetStream()
             $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::ASCII, $false, 1024, $true)
-
             $requestLine = $reader.ReadLine()
-            if ([string]::IsNullOrWhiteSpace($requestLine)) {
-                continue
-            }
 
-            while ($true) {
-                $headerLine = $reader.ReadLine()
-                if ($null -eq $headerLine -or $headerLine -eq "") { break }
-            }
+            if ($null -ne $requestLine) {
+                while ($true) {
+                    $headerLine = $reader.ReadLine()
+                    if ($null -eq $headerLine -or $headerLine -eq "") { break }
+                }
 
-            if ($HtmlPath -ne "-" -and (Test-Path -LiteralPath $HtmlPath -PathType Leaf)) {
-                $body = [System.IO.File]::ReadAllText($HtmlPath)
-            }
-            else {
-                $body = @"
+                if ($HtmlPath -ne "-" -and (Test-Path -LiteralPath $HtmlPath -PathType Leaf)) {
+                    $body = [System.IO.File]::ReadAllText($HtmlPath)
+                }
+                else {
+                    $body = @"
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -291,72 +273,59 @@ section { margin-top: 28px; } #updates { padding: 12px 16px; background: #f4f6f8
 </body>
 </html>
 "@
+                }
+
+                $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+                $crlf = [string][char]13 + [string][char]10
+                $header = "HTTP/1.1 200 OK" + $crlf + "Content-Type: text/html; charset=utf-8" + $crlf + "Content-Length: $($bytes.Length)" + $crlf + "Connection: close" + $crlf + $crlf
+                $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($header)
+                $stream.Write($headerBytes, 0, $headerBytes.Length)
+                $stream.Write($bytes, 0, $bytes.Length)
+                $stream.Flush()
             }
-
-            $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
-            $crlf = [string][char]13 + [string][char]10
-            $header = "HTTP/1.1 200 OK" + $crlf + "Content-Type: text/html; charset=utf-8" + $crlf + "Content-Length: $($bytes.Length)" + $crlf + "Connection: close" + $crlf + $crlf
-            $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($header)
-
-            $stream.Write($headerBytes, 0, $headerBytes.Length)
-            $stream.Write($bytes, 0, $bytes.Length)
-            $stream.Flush()
         }
-        catch {
-            Add-Content -Path $LogPath -Value "REQUEST ERROR: $($_.Exception.Message)"
-        }
+        catch {}
         finally {
             if ($reader) { $reader.Dispose() }
             $client.Close()
         }
     }
 }
-catch {
-    Add-Content -Path $LogPath -Value "SERVER ERROR: $($_.Exception.Message)"
-}
+catch {}
 finally {
     if ($listener) { $listener.Stop() }
 }
 '@
 
                 $htmlEncoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($htmlPath))
-                $logEncoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($logFile))
                 $serverCode = ('$Port = ' + $port) + [Environment]::NewLine +
-                    ('$HtmlPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''{0}''))' -f $htmlEncoded) + [Environment]::NewLine +
-                    ('$LogPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''{0}''))' -f $logEncoded) + [Environment]::NewLine +
-                    $serverCode
-
+                    ('$HtmlPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''{0}''))' -f $htmlEncoded) +
+                    [Environment]::NewLine + $serverCode
                 $encodedServer = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($serverCode))
                 $engine = Join-Path $PSHOME "powershell.exe"
 
                 try {
-                    $process = Start-Process -FilePath $engine -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand $encodedServer" -PassThru -WindowStyle Hidden
+                    $process = Start-Process -FilePath $engine -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand $encodedServer" -PassThru -WindowStyle Hidden -ErrorAction Stop
                 }
                 catch {
-                    Write-Host "Could not launch server: $($_.Exception.Message)"
+                    Write-Host "Could not launch localhost: $($_.Exception.Message)"
                     return
                 }
 
                 $ready = $false
-
                 for ($i = 0; $i -lt 50; $i++) {
                     Start-Sleep -Milliseconds 100
+                    if ($process.HasExited) { break }
 
-                    if (Test-Path $logFile) {
-                        $log = Get-Content $logFile -Raw
-
-                        if ($log -match "READY $port") {
-                            $ready = $true
-                            break
-                        }
-
-                        if ($log -match "SERVER ERROR") {
-                            break
-                        }
-                    }
-
-                    if ($process.HasExited) {
+                    $probe = [System.Net.Sockets.TcpClient]::new()
+                    try {
+                        $probe.Connect("127.0.0.1", $port)
+                        $ready = $true
                         break
+                    }
+                    catch {}
+                    finally {
+                        $probe.Dispose()
                     }
                 }
 
@@ -364,71 +333,51 @@ finally {
                     if (!$process.HasExited) {
                         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
                     }
-
-                    Write-Host "Server failed to start."
-
-                    if (Test-Path $logFile) {
-                        Get-Content $logFile | Write-Host
-                    }
-
+                    Write-Host "Server failed to start. The process did not open port $port."
                     return
                 }
 
-                Set-Content -Path $pidFile -Value $process.Id
-
+                $global:SimpleServers[$port] = $process
                 Write-Host "Simple localhost started!"
                 Write-Host "Port: $port"
                 Write-Host "Address: http://localhost:$port"
-
                 Start-Process "http://localhost:$port"
             }
-
             elseif ($action -eq "stop") {
-
-                if (!(Test-Path $pidFile)) {
-                    Write-Host "No Simple server registered on port $port."
+                if (!$global:SimpleServers.ContainsKey($port)) {
+                    Write-Host "No SIMPLE server is being tracked on port $port."
                     return
                 }
 
-                $serverPid = [int](Get-Content $pidFile -Raw)
-
-                try {
-                    Stop-Process -Id $serverPid -Force -ErrorAction Stop
-                    Write-Host "Simple localhost stopped on port $port."
+                $process = $global:SimpleServers[$port]
+                if (!$process.HasExited) {
+                    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
                 }
-                catch {
-                    Write-Host "Server process was already stopped."
-                }
-
-                Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+                $global:SimpleServers.Remove($port)
+                Write-Host "Simple localhost stopped on port $port."
             }
-
             elseif ($action -eq "status") {
-
-                if (!(Test-Path $pidFile)) {
+                if (!$global:SimpleServers.ContainsKey($port)) {
                     Write-Host "Simple localhost is NOT running on port $port."
                     return
                 }
 
-                $serverPid = [int](Get-Content $pidFile -Raw)
-                $process = Get-Process -Id $serverPid -ErrorAction SilentlyContinue
-
-                if (!$process) {
-                    Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+                $process = $global:SimpleServers[$port]
+                if ($process.HasExited) {
+                    $global:SimpleServers.Remove($port)
                     Write-Host "Simple localhost is NOT running on port $port."
                     return
                 }
 
-                $test = [System.Net.Sockets.TcpClient]::new()
+                $probe = [System.Net.Sockets.TcpClient]::new()
                 $connected = $false
-
                 try {
-                    $test.Connect("127.0.0.1", $port)
+                    $probe.Connect("127.0.0.1", $port)
                     $connected = $true
                 }
                 catch {}
                 finally {
-                    $test.Dispose()
+                    $probe.Dispose()
                 }
 
                 if ($connected) {
@@ -439,7 +388,6 @@ finally {
                     Write-Host "Server process exists but is not accepting connections."
                 }
             }
-
             else {
                 Write-Host "Unknown localhost command."
             }
