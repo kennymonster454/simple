@@ -207,7 +207,7 @@ function simple {
                 $serverCode = $serverCode.Replace('$listener.Start()','$listener.Start()' + [Environment]::NewLine + '$State.Listener = $listener' + [Environment]::NewLine + 'Add-Content -LiteralPath $LogPath -Value ("[{0}] LISTENING 127.0.0.1:{1}" -f (Get-Date -Format o), $Port)')
                 $serverCode = $serverCode.Replace('$client = $listener.AcceptTcpClient()','$client = $listener.AcceptTcpClient()' + [Environment]::NewLine + 'Add-Content -LiteralPath $LogPath -Value ("[{0}] CONNECTION {1}" -f (Get-Date -Format o), $client.Client.RemoteEndPoint)')
                 $serverCode = $serverCode.Replace('$requestLine = $reader.ReadLine()','$requestLine = $reader.ReadLine()' + [Environment]::NewLine + 'Add-Content -LiteralPath $LogPath -Value ("[{0}] REQUEST {1}" -f (Get-Date -Format o), $requestLine)')
-                $serverCode = ('$Port = ' + $port) + [Environment]::NewLine + ('$HtmlPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''{0}''))' -f [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($htmlPath))) + [Environment]::NewLine + '$State = $args[0]' + [Environment]::NewLine + '$LogPath = $args[1]' + [Environment]::NewLine + $serverCode
+                # Port, HtmlPath, State, and LogPath are supplied directly to the runspace.
                 $runspace = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
                 $runspace.Open()
                 $runspace.SessionStateProxy.SetVariable("Port",$port)
