@@ -1,6 +1,6 @@
 # SIMPLE LANGUAGE
 # SIMPLE COMMAND SYSTEM - CREATED BY KENNY
-# VERSION 3.5
+# VERSION 3.5.1
 function simple {
     param(
         [Parameter(ValueFromRemainingArguments=$true)]
@@ -171,6 +171,8 @@ function simple {
     if ($english -match '^(?i)clear screen$') { Clear-Host; return }
     if (!$SimpleArgs) {
         Write-Host "SIMPLE COMMANDS"
+        Write-Host ""
+        Write-Host "Core commands:"
         Write-Host "simple print <text>"
         Write-Host "simple vector ip <address>"
         Write-Host "simple open window <HTML file path>"
@@ -180,6 +182,27 @@ function simple {
         Write-Host "simple update"
         Write-Host "simple update localhost <port>"
         Write-Host "simple update timeline"
+        Write-Host "simple run <path to .smp file>"
+        Write-Host ""
+        Write-Host "English commands (use after 'simple'):"
+        Write-Host "simple help"
+        Write-Host "simple show my files"
+        Write-Host "simple show my folders"
+        Write-Host "simple show my drives"
+        Write-Host "simple show files in <drive>:"
+        Write-Host "simple show folders in <drive>:"
+        Write-Host "simple show running programs"
+        Write-Host "simple open <drive>:"
+        Write-Host "simple go to <drive>:"
+        Write-Host "simple create a folder called <name> [in <drive>:]"
+        Write-Host "simple find a file called <name> in <drive>:"
+        Write-Host "simple open notepad"
+        Write-Host "simple open calculator"
+        Write-Host "simple what time is it"
+        Write-Host "simple show my computer info"
+        Write-Host "simple show wifi status"
+        Write-Host "simple say <text>"
+        Write-Host "simple clear screen"
         return
     }
 
