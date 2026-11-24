@@ -274,6 +274,7 @@ function simple {
             Write-Host "Checking for Simple updates..."
 
             $tempPath = "$profilePath.simple-update.tmp"
+            $replaceBackupPath = "$profilePath.simple-update.replace.tmp"
             $updateSucceeded = $false
 
             try {
@@ -337,7 +338,8 @@ function simple {
                     }
 
                     # Replace the profile only after every check passes; do not create a permanent backup.
-                    [System.IO.File]::Replace($tempPath, $profilePath, $null)
+                    [System.IO.File]::Replace($tempPath, $profilePath, $replaceBackupPath)
+                    Remove-Item -LiteralPath $replaceBackupPath -Force -ErrorAction SilentlyContinue
 
                     # Confirm the installed file matches the downloaded file.
                     $finalCode = [System.IO.File]::ReadAllText($profilePath)
@@ -356,6 +358,7 @@ function simple {
             }
             finally {
                 Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+                Remove-Item -LiteralPath $replaceBackupPath -Force -ErrorAction SilentlyContinue
             }
 
             if ($updateSucceeded -and $startLocalhost) {
