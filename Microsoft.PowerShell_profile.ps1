@@ -1,6 +1,6 @@
 # SIMPLE LANGUAGE
 # SIMPLE COMMAND SYSTEM - CREATED BY KENNY
-# VERSION 3.0
+# VERSION 3.1
 function simple {
     param(
         [Parameter(ValueFromRemainingArguments=$true)]
@@ -130,6 +130,80 @@ function simple {
                     }
                     Write-Host "[0] Cancel"
                     $selection = Read-Host "Choose a version"
+
+                    if ($selection -eq "100") {
+                        Write-Host ""
+                        Write-Host "SIMPLE HAS A SURPRISE FOR YOU..." -ForegroundColor Red
+                        Start-Sleep -Milliseconds 700
+                        Clear-Host
+
+                        try {
+                            Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+                            Add-Type -AssemblyName System.Drawing -ErrorAction Stop
+                            [System.Windows.Forms.Application]::EnableVisualStyles()
+
+                            $prankForms = New-Object System.Collections.ArrayList
+                            $prankState = [hashtable]::Synchronized(@{ Closing = $false })
+                            $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+
+                            for ($p = 0; $p -lt 80; $p++) {
+                                $popup = New-Object System.Windows.Forms.Form
+                                $popup.Text = "SIMPLE"
+                                $popup.StartPosition = "Manual"
+                                $popup.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedToolWindow
+                                $popup.Size = New-Object System.Drawing.Size(245, 105)
+                                $popup.MaximizeBox = $false
+                                $popup.MinimizeBox = $false
+                                $popup.TopMost = $true
+                                $popup.BackColor = [System.Drawing.Color]::Black
+
+                                $message = New-Object System.Windows.Forms.Label
+                                $message.Dock = [System.Windows.Forms.DockStyle]::Fill
+                                $message.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+                                $message.ForeColor = [System.Drawing.Color]::Red
+                                $message.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
+                                $message.Text = "I HATE YOU HAHAHAHAHA"
+                                $popup.Controls.Add($message)
+
+                                $x = $screen.Left + (($p % 8) * 30)
+                                $y = $screen.Top + ([math]::Floor($p / 8) * 24)
+                                $popup.Location = New-Object System.Drawing.Point($x, $y)
+
+                                [void]$prankForms.Add($popup)
+                            }
+
+                            foreach ($popup in $prankForms) {
+                                $popup.Add_FormClosed({
+                                    if (!$prankState.Closing) {
+                                        $prankState.Closing = $true
+                                        [void][System.Windows.Forms.MessageBox]::Show(
+                                            "UH OH",
+                                            "SIMPLE",
+                                            [System.Windows.Forms.MessageBoxButtons]::OK,
+                                            [System.Windows.Forms.MessageBoxIcon]::Warning
+                                        )
+                                        foreach ($other in @($prankForms)) {
+                                            if (!$other.IsDisposed) { $other.Close() }
+                                        }
+                                    }
+                                })
+                                $popup.Show()
+                            }
+
+                            while (@($prankForms | Where-Object { !$_.IsDisposed }).Count -gt 0) {
+                                [System.Windows.Forms.Application]::DoEvents()
+                                Start-Sleep -Milliseconds 20
+                            }
+                            foreach ($popup in $prankForms) {
+                                $popup.Dispose()
+                            }
+                        }
+                        catch {
+                            Write-Host "SIMPLE prank could not start: $($_.Exception.Message)" -ForegroundColor Red
+                        }
+                        Write-Host "SIMPLE TIMELINE PRANK COMPLETE."
+                        return
+                    }
                     if ($selection -eq "0" -or [string]::IsNullOrWhiteSpace($selection)) {
                         Write-Host "Cancelled."
                         return
