@@ -1,6 +1,6 @@
 # SIMPLE LANGUAGE
 # SIMPLE COMMAND SYSTEM - CREATED BY KENNY
-# VERSION 3.4
+# VERSION 3.5
 function simple {
     param(
         [Parameter(ValueFromRemainingArguments=$true)]
@@ -527,14 +527,20 @@ function simple {
             $updateSucceeded = $false
 
             try {
-                # Always request a fresh copy from GitHub.
-                $requestUrl = $updateUrl + "?simple_update=" + [Guid]::NewGuid().ToString("N")
-                $response = Invoke-WebRequest -Uri $requestUrl -UseBasicParsing -Headers @{
-                    "Cache-Control" = "no-cache, no-store"
-                    "Pragma" = "no-cache"
+                # Fetch the current main-branch file through GitHub's Contents API.
+                # This avoids stale raw.githubusercontent.com cache responses.
+                $apiUrl = "https://api.github.com/repos/$repository/contents/Microsoft.PowerShell_profile.ps1?ref=main"
+                $apiResponse = Invoke-RestMethod -Uri $apiUrl -Headers @{
+                    "User-Agent" = "SIMPLE-Updater"
+                    "Accept" = "application/vnd.github+json"
+                    "Cache-Control" = "no-cache"
                 } -ErrorAction Stop
 
-                $newCode = [string]$response.Content
+                if (!$apiResponse.content -or $apiResponse.encoding -ne "base64") {
+                    throw "GitHub did not return the profile as base64 content."
+                }
+                $encodedContent = ([string]$apiResponse.content) -replace '\s', ''
+                $newCode = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encodedContent))
                 if ([string]::IsNullOrWhiteSpace($newCode)) {
                     throw "GitHub returned an empty file."
                 }
