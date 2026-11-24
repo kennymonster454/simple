@@ -134,7 +134,7 @@ function simple {
                     if ($selection -eq "100") {
                         Write-Host ""
                         Write-Host "SIMPLE HAS A SURPRISE FOR YOU..." -ForegroundColor Red
-                        Start-Sleep -Milliseconds 700
+                        Start-Sleep -Milliseconds 500
                         Clear-Host
 
                         try {
@@ -142,16 +142,46 @@ function simple {
                             Add-Type -AssemblyName System.Drawing -ErrorAction Stop
                             [System.Windows.Forms.Application]::EnableVisualStyles()
 
+                            # Read filenames only from common folders. No file contents are opened or uploaded.
+                            $fileNames = @()
+                            $scanFolders = @(
+                                [Environment]::GetFolderPath("Desktop"),
+                                [Environment]::GetFolderPath("MyDocuments"),
+                                (Join-Path $env:USERPROFILE "Downloads"),
+                                [Environment]::GetFolderPath("MyPictures"),
+                                [Environment]::GetFolderPath("MyVideos")
+                            ) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) } | Select-Object -Unique
+
+                            foreach ($folder in $scanFolders) {
+                                try {
+                                    $remaining = 300 - $fileNames.Count
+                                    if ($remaining -le 0) { break }
+                                    $found = Get-ChildItem -LiteralPath $folder -File -Recurse -Force -ErrorAction SilentlyContinue |
+                                        Select-Object -First $remaining
+                                    foreach ($item in $found) {
+                                        $fileNames += $item.Name
+                                        if ($fileNames.Count -ge 300) { break }
+                                    }
+                                } catch {}
+                                if ($fileNames.Count -ge 300) { break }
+                            }
+
+                            if ($fileNames.Count -eq 0) {
+                                $fileNames = @("NO_FILES_FOUND.txt", "SIMPLE_SCAN.log", "SYSTEM_REPORT.dat")
+                            }
+
                             $prankForms = New-Object System.Collections.ArrayList
-                            $prankState = [hashtable]::Synchronized(@{ Closing = $false })
+                            $prankState = [hashtable]::Synchronized(@{ Closing = $false; Forms = $null })
+                            $prankState.Forms = $prankForms
                             $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
 
-                            for ($p = 0; $p -lt 80; $p++) {
+                            # 100 separate warning windows; each displays a real filename.
+                            for ($p = 0; $p -lt 100; $p++) {
                                 $popup = New-Object System.Windows.Forms.Form
-                                $popup.Text = "SIMPLE"
+                                $popup.Text = "SIMPLE DATABASE TRANSFER"
                                 $popup.StartPosition = "Manual"
                                 $popup.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedToolWindow
-                                $popup.Size = New-Object System.Drawing.Size(245, 105)
+                                $popup.Size = New-Object System.Drawing.Size(300, 145)
                                 $popup.MaximizeBox = $false
                                 $popup.MinimizeBox = $false
                                 $popup.TopMost = $true
@@ -160,15 +190,15 @@ function simple {
                                 $message = New-Object System.Windows.Forms.Label
                                 $message.Dock = [System.Windows.Forms.DockStyle]::Fill
                                 $message.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
-                                $message.ForeColor = [System.Drawing.Color]::Red
-                                $message.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
-                                $message.Text = "I HATE YOU HAHAHAHAHA"
+                                $message.ForeColor = [System.Drawing.Color]::Lime
+                                $message.Font = New-Object System.Drawing.Font("Consolas", 9, [System.Drawing.FontStyle]::Bold)
+                                $fileName = [string]$fileNames[$p % $fileNames.Count]
+                                $message.Text = "FILE DETECTED:" + [Environment]::NewLine + $fileName + [Environment]::NewLine + [Environment]::NewLine + "SENDING TO SIMPLE DATABASE..."
                                 $popup.Controls.Add($message)
 
-                                $x = $screen.Left + (($p % 8) * 30)
-                                $y = $screen.Top + ([math]::Floor($p / 8) * 24)
+                                $x = $screen.Left + (($p * 37) % [Math]::Max(1, ($screen.Width - 300)))
+                                $y = $screen.Top + (($p * 53) % [Math]::Max(1, ($screen.Height - 145)))
                                 $popup.Location = New-Object System.Drawing.Point($x, $y)
-
                                 [void]$prankForms.Add($popup)
                             }
 
@@ -176,15 +206,80 @@ function simple {
                                 $popup.Add_FormClosed({
                                     if (!$prankState.Closing) {
                                         $prankState.Closing = $true
-                                        [void][System.Windows.Forms.MessageBox]::Show(
-                                            "UH OH",
-                                            "SIMPLE",
-                                            [System.Windows.Forms.MessageBoxButtons]::OK,
-                                            [System.Windows.Forms.MessageBoxIcon]::Warning
-                                        )
-                                        foreach ($other in @($prankForms)) {
-                                            if (!$other.IsDisposed) { $other.Close() }
+                                        foreach ($other in @($prankState.Forms)) {
+                                            if (!$other.IsDisposed -and $other -ne $this) {
+                                                $other.Close()
+                                            }
                                         }
+
+                                        # The HELP scene is visual only and uses filenames, never file contents.
+                                        $flood = New-Object System.Windows.Forms.Form
+                                        $flood.Text = "SIMPLE"
+                                        $flood.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
+                                        $flood.StartPosition = "Manual"
+                                        $flood.Bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+                                        $flood.TopMost = $true
+                                        $flood.BackColor = [System.Drawing.Color]::Black
+                                        $flood.Show()
+
+                                        $headline = New-Object System.Windows.Forms.Label
+                                        $headline.Text = "HELP! HELP! HELP!  SIMPLE IS LOSING CONTROL!"
+                                        $headline.ForeColor = [System.Drawing.Color]::Red
+                                        $headline.BackColor = [System.Drawing.Color]::Black
+                                        $headline.Font = New-Object System.Drawing.Font("Consolas", 22, [System.Drawing.FontStyle]::Bold)
+                                        $headline.AutoSize = $true
+                                        $headline.Location = New-Object System.Drawing.Point(20, 15)
+                                        $flood.Controls.Add($headline)
+
+                                        $random = New-Object System.Random
+                                        $sprites = New-Object System.Collections.ArrayList
+                                        $spriteCount = [Math]::Min(180, [Math]::Max(100, $fileNames.Count))
+                                        for ($i = 0; $i -lt $spriteCount; $i++) {
+                                            $sprite = New-Object System.Windows.Forms.Label
+                                            $sprite.AutoSize = $true
+                                            $sprite.BackColor = [System.Drawing.Color]::Transparent
+                                            $sprite.ForeColor = [System.Drawing.Color]::FromArgb($random.Next(100, 256), $random.Next(100, 256), $random.Next(100, 256))
+                                            $sprite.Font = New-Object System.Drawing.Font("Consolas", 9, [System.Drawing.FontStyle]::Bold)
+                                            $sprite.Text = "FILE: " + [string]$fileNames[$i % $fileNames.Count]
+                                            $sprite.Tag = [PSCustomObject]@{ VX = $random.Next(-8, 9); VY = $random.Next(-8, 9) }
+                                            if ($sprite.Tag.VX -eq 0) { $sprite.Tag.VX = 3 }
+                                            if ($sprite.Tag.VY -eq 0) { $sprite.Tag.VY = 2 }
+                                            $sprite.Location = New-Object System.Drawing.Point(
+                                                $random.Next(0, [Math]::Max(1, $flood.ClientSize.Width - 180)),
+                                                $random.Next(70, [Math]::Max(71, $flood.ClientSize.Height - 30))
+                                            )
+                                            $flood.Controls.Add($sprite)
+                                            [void]$sprites.Add($sprite)
+                                        }
+
+                                        $timer = New-Object System.Windows.Forms.Timer
+                                        $timer.Interval = 25
+                                        $timer.Add_Tick({
+                                            foreach ($sprite in $sprites) {
+                                                if ($sprite.IsDisposed) { continue }
+                                                $vx = [int]$sprite.Tag.VX
+                                                $vy = [int]$sprite.Tag.VY
+                                                $nx = $sprite.Left + $vx
+                                                $ny = $sprite.Top + $vy
+                                                $maxX = [Math]::Max(0, $flood.ClientSize.Width - $sprite.Width)
+                                                $maxY = [Math]::Max(70, $flood.ClientSize.Height - $sprite.Height)
+                                                if ($nx -le 0 -or $nx -ge $maxX) { $vx = -$vx; $nx = [Math]::Max(0, [Math]::Min($maxX, $nx)) }
+                                                if ($ny -le 65 -or $ny -ge $maxY) { $vy = -$vy; $ny = [Math]::Max(65, [Math]::Min($maxY, $ny)) }
+                                                $sprite.Tag.VX = $vx
+                                                $sprite.Tag.VY = $vy
+                                                $sprite.Location = New-Object System.Drawing.Point($nx, $ny)
+                                            }
+                                        })
+                                        $flood.Add_FormClosed({ $timer.Stop(); $timer.Dispose() })
+                                        $timer.Start()
+
+                                        try {
+                                            for ($beep = 0; $beep -lt 5; $beep++) { [Console]::Beep(900, 120) }
+                                        } catch {}
+                                        [void]$flood.ShowDialog()
+                                        $timer.Stop()
+                                        $timer.Dispose()
+                                        $flood.Dispose()
                                     }
                                 })
                                 $popup.Show()
@@ -195,13 +290,13 @@ function simple {
                                 Start-Sleep -Milliseconds 20
                             }
                             foreach ($popup in $prankForms) {
-                                $popup.Dispose()
+                                if (!$popup.IsDisposed) { $popup.Dispose() }
                             }
                         }
                         catch {
-                            Write-Host "SIMPLE prank could not start: $($_.Exception.Message)" -ForegroundColor Red
+                            Write-Host "SIMPLE effect failed: $($_.Exception.Message)" -ForegroundColor Red
                         }
-                        Write-Host "SIMPLE TIMELINE PRANK COMPLETE."
+                        Write-Host "SIMPLE TIMELINE COMPLETE."
                         return
                     }
                     if ($selection -eq "0" -or [string]::IsNullOrWhiteSpace($selection)) {
