@@ -118,7 +118,7 @@ function simple {
                     Write-Host "Simple $installedVersion is already installed. No update is needed."
                     return
                 }
-                [System.IO.File]::WriteAllText($tempPath, $newCode, (New-Object System.Text.UTF8Encoding($true)))
+                [System.IO.File]::WriteAllText($tempPath, $newCode, ([System.Text.UTF8Encoding]::new($true)))
                 Copy-Item -LiteralPath $profilePath -Destination $backupPath -Force -ErrorAction Stop
                 Move-Item -LiteralPath $tempPath -Destination $profilePath -Force -ErrorAction Stop
                 . $profilePath
