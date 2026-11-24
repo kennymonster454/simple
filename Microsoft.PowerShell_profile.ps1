@@ -1,6 +1,6 @@
 # SIMPLE LANGUAGE
 # SIMPLE COMMAND SYSTEM - CREATED BY KENNY
-# VERSION 3.6.0
+# VERSION 3.6.1
 function simple {
     param(
         [Parameter(ValueFromRemainingArguments=$true)]
@@ -162,7 +162,7 @@ reset();requestAnimationFrame(frame);
     if ($english -match '^(?i)(help|show commands)$') {
         Write-Host ""
         Write-Host "╔══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-        Write-Host "║                         SIMPLE COMMANDS 3.6.0                        ║" -ForegroundColor Cyan
+        Write-Host "║                         SIMPLE COMMANDS 3.6.1                        ║" -ForegroundColor Cyan
         Write-Host "╠══════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
         Write-Host "║  BASIC                                                                 ║"
         Write-Host "║  simple print <text>                                                   ║"
@@ -366,49 +366,55 @@ reset();requestAnimationFrame(frame);
 
         "open" {
             if ($SimpleArgs.Count -lt 3 -or $SimpleArgs[1].ToLower() -ne "window") {
-                Write-Host "Usage: simple open window <HTML file path>"
+                Write-Host "Usage: simple open window <HTML file path or localhost URL>"
                 return
             }
 
-            $htmlPath = ($SimpleArgs[2..($SimpleArgs.Count - 1)] -join " ").Trim('"')
+            $windowTarget = ($SimpleArgs[2..($SimpleArgs.Count - 1)] -join " ").Trim().Trim('"')
+            $navigateTarget = $null
+            $targetUri = $null
 
-            if (!(Test-Path -LiteralPath $htmlPath -PathType Leaf)) {
-                Write-Host "HTML file not found: $htmlPath"
-                return
-            }
-
-            $resolvedPath = (Resolve-Path -LiteralPath $htmlPath).Path
-            if ([IO.Path]::GetExtension($resolvedPath).ToLower() -notin @(".html", ".htm")) {
-                Write-Host "Please select an .html or .htm file."
-                return
+            if ([Uri]::TryCreate($windowTarget, [UriKind]::Absolute, [ref]$targetUri) -and $targetUri.Scheme -match '^https?$') {
+                if ($targetUri.IsLoopback) {
+                    $navigateTarget = $targetUri.AbsoluteUri
+                } else {
+                    Write-Host "SIMPLE windows only open local files or localhost addresses."
+                    return
+                }
+            } else {
+                if (!(Test-Path -LiteralPath $windowTarget -PathType Leaf)) {
+                    Write-Host "HTML file not found: $windowTarget"
+                    return
+                }
+                $resolvedPath = (Resolve-Path -LiteralPath $windowTarget).Path
+                if ([IO.Path]::GetExtension($resolvedPath).ToLower() -notin @(".html", ".htm")) {
+                    Write-Host "Please select an .html or .htm file."
+                    return
+                }
+                $navigateTarget = ([Uri]$resolvedPath).AbsoluteUri
             }
 
             try {
                 Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
                 Add-Type -AssemblyName System.Drawing -ErrorAction Stop
-
                 [System.Windows.Forms.Application]::EnableVisualStyles()
-
                 $window = New-Object System.Windows.Forms.Form
-                $window.Text = "Simple Window"
+                $window.Text = "SIMPLE - Localhost"
                 $window.StartPosition = "CenterScreen"
-                $window.Size = New-Object System.Drawing.Size(1000, 700)
-                $window.MinimumSize = New-Object System.Drawing.Size(400, 300)
-
+                $window.Size = New-Object System.Drawing.Size(1100, 760)
+                $window.MinimumSize = New-Object System.Drawing.Size(500, 350)
                 $viewer = New-Object System.Windows.Forms.WebBrowser
                 $viewer.Dock = [System.Windows.Forms.DockStyle]::Fill
                 $viewer.ScriptErrorsSuppressed = $true
                 $viewer.IsWebBrowserContextMenuEnabled = $true
                 $viewer.WebBrowserShortcutsEnabled = $true
                 $window.Controls.Add($viewer)
-
-                $viewer.Navigate(([Uri]$resolvedPath).AbsoluteUri)
+                $viewer.Navigate($navigateTarget)
                 [void]$window.ShowDialog()
                 $window.Dispose()
                 $viewer.Dispose()
-            }
-            catch {
-                Write-Host "Could not open the Simple window: $($_.Exception.Message)"
+            } catch {
+                Write-Host "Could not open the SIMPLE window: $($_.Exception.Message)"
             }
         }
 
@@ -909,7 +915,7 @@ reset();requestAnimationFrame(frame);
                 Write-Host "Address: http://localhost:$port"
                 Write-Host "Local log: $logPath"
                 Add-Content -LiteralPath $logPath -Value ("[{0}] SERVER STARTED" -f (Get-Date -Format o))
-                Start-Process "http://localhost:$port"
+                simple open window "http://localhost:$port"
             }
             elseif ($action -eq "stop") {
                 if (!$global:SimpleServers.ContainsKey($port)) {
