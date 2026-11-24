@@ -338,7 +338,7 @@ function simple {
                     }
 
                     # Replace the profile only after every check passes; do not create a permanent backup.
-                    [System.IO.File]::Replace($tempPath, $profilePath, $replaceBackupPath)
+                    Copy-Item -LiteralPath $tempPath -Destination $profilePath -Force -ErrorAction Stop
                     Remove-Item -LiteralPath $replaceBackupPath -Force -ErrorAction SilentlyContinue
 
                     # Confirm the installed file matches the downloaded file.
