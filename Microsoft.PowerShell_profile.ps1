@@ -56,6 +56,13 @@ function simple {
                 $SimpleArgs[1] = $fixes[$secondWord]
                 Write-Host ("SIMPLE spelling fix: " + $secondWord + " -> " + $SimpleArgs[1]) -ForegroundColor Yellow
             }
+            if ($SimpleArgs.Count -gt 2 -and (($SimpleArgs[0].ToLowerInvariant() -eq "show" -and $SimpleArgs[1].ToLowerInvariant() -eq "my") -or ($SimpleArgs[0].ToLowerInvariant() -eq "create" -and $SimpleArgs[1].ToLowerInvariant() -eq "a"))) {
+                $thirdWord = $SimpleArgs[2].ToLowerInvariant()
+                if ($fixes.ContainsKey($thirdWord)) {
+                    $SimpleArgs[2] = $fixes[$thirdWord]
+                    Write-Host ("SIMPLE spelling fix: " + $thirdWord + " -> " + $SimpleArgs[2]) -ForegroundColor Yellow
+                }
+            }
         }
     }
 
