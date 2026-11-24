@@ -1,6 +1,6 @@
 # SIMPLE LANGUAGE
 # SIMPLE COMMAND SYSTEM - CREATED BY KENNY
-# VERSION 3.5.3
+# VERSION 3.5.4
 function simple {
     param(
         [Parameter(ValueFromRemainingArguments=$true)]
@@ -68,17 +68,40 @@ function simple {
 
     $english = ($SimpleArgs -join " ").Trim()
     if ($english -match '^(?i)(help|show commands)$') {
-        Write-Host "SIMPLE COMMANDS (3.5.2)"
-        Write-Host "BASIC: simple print <text> | simple say <text> | simple clear screen | simple what time is it"
-        Write-Host "FILES: simple show my files | simple show my folders | simple show my drives"
-        Write-Host "       simple show files in <drive>: | simple show folders in <drive>: | simple find a file called <name> in <drive>:"
-        Write-Host "       simple create a folder called <name> in <drive>: | simple open <drive>: | simple go to <drive>:"
-        Write-Host "       simple open in simple <text.txt>"
-        Write-Host "SYSTEM: simple show running programs | simple show my computer info | simple show wifi status | simple open notepad | simple open calculator"
-        Write-Host "VECTOR: simple vector ip <address> | WINDOWS: simple open window <HTML file path>"
-        Write-Host "LOCALHOST: simple localhost start <port> | simple localhost stop <port> | simple localhost status <port>"
-        Write-Host "UPDATES: simple update | simple update localhost <port> | simple update timeline"
-        Write-Host "SCRIPTS: simple run <path to .smp file>"
+        Write-Host ""
+        Write-Host "╔══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
+        Write-Host "║                         SIMPLE COMMANDS 3.5.4                        ║" -ForegroundColor Cyan
+        Write-Host "╠══════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
+        Write-Host "║  BASIC                                                                 ║"
+        Write-Host "║  simple print <text>                                                   ║"
+        Write-Host "║  simple say <text>   |   simple clear screen   |   simple what time is it"
+        Write-Host "╠══════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
+        Write-Host "║  FILES                                                                 ║"
+        Write-Host "║  simple show my files   |   simple show my folders   |   simple show my drives"
+        Write-Host "║  simple show files in <drive>:   |   simple show folders in <drive>:"
+        Write-Host "║  simple find a file called <name> in <drive>:"
+        Write-Host "║  simple create a folder called <name> in <drive>:"
+        Write-Host "║  simple open <drive>:   |   simple go to <drive>:"
+        Write-Host "║  simple open in simple <text.txt>"
+        Write-Host "╠══════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
+        Write-Host "║  SYSTEM                                                                ║"
+        Write-Host "║  simple show running programs   |   simple show my computer info"
+        Write-Host "║  simple show wifi status   |   simple open notepad   |   simple open calculator"
+        Write-Host "╠══════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
+        Write-Host "║  VECTOR & WINDOWS                                                      ║"
+        Write-Host "║  simple vector ip <address>"
+        Write-Host "║  simple open window <HTML file path>"
+        Write-Host "╠══════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
+        Write-Host "║  LOCALHOST                                                             ║"
+        Write-Host "║  simple localhost start <port>   |   simple localhost stop <port>"
+        Write-Host "║  simple localhost status <port>"
+        Write-Host "╠══════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
+        Write-Host "║  UPDATES                                                               ║"
+        Write-Host "║  simple update   |   simple update localhost <port>   |   simple update timeline"
+        Write-Host "╠══════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
+        Write-Host "║  SCRIPTS                                                               ║"
+        Write-Host "║  simple run <path to .smp file>"
+        Write-Host "╚══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
         return
     }
     if ($english -match '^(?i)(show my drives|show drives)$') {
@@ -191,17 +214,40 @@ function simple {
     if ($english -match '^(?i)say (.*)$') { Write-Host $matches[1]; return }
     if ($english -match '^(?i)clear screen$') { Clear-Host; return }
     if (!$SimpleArgs) {
-        Write-Host "SIMPLE COMMANDS (3.5.2)"
-        Write-Host "BASIC: simple print <text> | simple say <text> | simple clear screen | simple what time is it"
-        Write-Host "FILES: simple show my files | simple show my folders | simple show my drives"
-        Write-Host "       simple show files in <drive>: | simple show folders in <drive>: | simple find a file called <name> in <drive>:"
-        Write-Host "       simple create a folder called <name> in <drive>: | simple open <drive>: | simple go to <drive>:"
-        Write-Host "       simple open in simple <text.txt>"
-        Write-Host "SYSTEM: simple show running programs | simple show my computer info | simple show wifi status | simple open notepad | simple open calculator"
-        Write-Host "VECTOR: simple vector ip <address> | WINDOWS: simple open window <HTML file path>"
-        Write-Host "LOCALHOST: simple localhost start <port> | simple localhost stop <port> | simple localhost status <port>"
-        Write-Host "UPDATES: simple update | simple update localhost <port> | simple update timeline"
-        Write-Host "SCRIPTS: simple run <path to .smp file>"
+        Write-Host ""
+        Write-Host "╔══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
+        Write-Host "║                         SIMPLE COMMANDS 3.5.4                        ║" -ForegroundColor Cyan
+        Write-Host "╠══════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
+        Write-Host "║  BASIC                                                                 ║"
+        Write-Host "║  simple print <text>                                                   ║"
+        Write-Host "║  simple say <text>   |   simple clear screen   |   simple what time is it"
+        Write-Host "╠══════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
+        Write-Host "║  FILES                                                                 ║"
+        Write-Host "║  simple show my files   |   simple show my folders   |   simple show my drives"
+        Write-Host "║  simple show files in <drive>:   |   simple show folders in <drive>:"
+        Write-Host "║  simple find a file called <name> in <drive>:"
+        Write-Host "║  simple create a folder called <name> in <drive>:"
+        Write-Host "║  simple open <drive>:   |   simple go to <drive>:"
+        Write-Host "║  simple open in simple <text.txt>"
+        Write-Host "╠══════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
+        Write-Host "║  SYSTEM                                                                ║"
+        Write-Host "║  simple show running programs   |   simple show my computer info"
+        Write-Host "║  simple show wifi status   |   simple open notepad   |   simple open calculator"
+        Write-Host "╠══════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
+        Write-Host "║  VECTOR & WINDOWS                                                      ║"
+        Write-Host "║  simple vector ip <address>"
+        Write-Host "║  simple open window <HTML file path>"
+        Write-Host "╠══════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
+        Write-Host "║  LOCALHOST                                                             ║"
+        Write-Host "║  simple localhost start <port>   |   simple localhost stop <port>"
+        Write-Host "║  simple localhost status <port>"
+        Write-Host "╠══════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
+        Write-Host "║  UPDATES                                                               ║"
+        Write-Host "║  simple update   |   simple update localhost <port>   |   simple update timeline"
+        Write-Host "╠══════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
+        Write-Host "║  SCRIPTS                                                               ║"
+        Write-Host "║  simple run <path to .smp file>"
+        Write-Host "╚══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
         return
     }
 
