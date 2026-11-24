@@ -1,6 +1,6 @@
 # SIMPLE LANGUAGE
 # SIMPLE COMMAND SYSTEM - CREATED BY KENNY
-# VERSION 2.2
+# VERSION 2.3
 
 function simple {
     param(
@@ -196,54 +196,57 @@ function simple {
                     return
                 }
 
-                # The server runs as a hidden child process. Its process object
-                # is tracked in memory; SIMPLE does not create server, PID, or log files.
+                # Run the server in an in-process PowerShell runspace; loopback only.
+                $logDirectory = Join-Path $env:LOCALAPPDATA "Simple\Logs"
+                New-Item -ItemType Directory -Path $logDirectory -Force -ErrorAction Stop | Out-Null
+                $logPath = Join-Path $logDirectory ("localhost-{0}.log" -f $port)
+                $state = [hashtable]::Synchronized(@{ StopRequested = $false; Listener = $null })
+                Add-Content -LiteralPath $logPath -Value ("[{0}] START REQUESTED 127.0.0.1:{1}" -f (Get-Date -Format o), $port)
                 $serverCode = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('JEVycm9yQWN0aW9uUHJlZmVyZW5jZSA9ICJTdG9wIgokbGlzdGVuZXIgPSAkbnVsbAp0cnkgewogICAgJGxpc3RlbmVyID0gW1N5c3RlbS5OZXQuU29ja2V0cy5UY3BMaXN0ZW5lcl06Om5ldyhbU3lzdGVtLk5ldC5JUEFkZHJlc3NdOjpMb29wYmFjaywgJFBvcnQpCiAgICAkbGlzdGVuZXIuU3RhcnQoKQoKICAgIHdoaWxlICgkdHJ1ZSkgewogICAgICAgICRjbGllbnQgPSAkbGlzdGVuZXIuQWNjZXB0VGNwQ2xpZW50KCkKICAgICAgICAkcmVhZGVyID0gJG51bGwKICAgICAgICB0cnkgewogICAgICAgICAgICAkc3RyZWFtID0gJGNsaWVudC5HZXRTdHJlYW0oKQogICAgICAgICAgICAkcmVhZGVyID0gW1N5c3RlbS5JTy5TdHJlYW1SZWFkZXJdOjpuZXcoJHN0cmVhbSwgW1N5c3RlbS5UZXh0LkVuY29kaW5nXTo6QVNDSUksICRmYWxzZSwgMTAyNCwgJHRydWUpCiAgICAgICAgICAgICRyZXF1ZXN0TGluZSA9ICRyZWFkZXIuUmVhZExpbmUoKQoKICAgICAgICAgICAgaWYgKCRudWxsIC1uZSAkcmVxdWVzdExpbmUpIHsKICAgICAgICAgICAgICAgIHdoaWxlICgkdHJ1ZSkgewogICAgICAgICAgICAgICAgICAgICRoZWFkZXJMaW5lID0gJHJlYWRlci5SZWFkTGluZSgpCiAgICAgICAgICAgICAgICAgICAgaWYgKCRudWxsIC1lcSAkaGVhZGVyTGluZSAtb3IgJGhlYWRlckxpbmUgLWVxICIiKSB7IGJyZWFrIH0KICAgICAgICAgICAgICAgIH0KCiAgICAgICAgICAgICAgICBpZiAoJEh0bWxQYXRoIC1uZSAiLSIgLWFuZCAoVGVzdC1QYXRoIC1MaXRlcmFsUGF0aCAkSHRtbFBhdGggLVBhdGhUeXBlIExlYWYpKSB7CiAgICAgICAgICAgICAgICAgICAgJGJvZHkgPSBbU3lzdGVtLklPLkZpbGVdOjpSZWFkQWxsVGV4dCgkSHRtbFBhdGgpCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICBlbHNlIHsKICAgICAgICAgICAgICAgICAgICAkYm9keSA9IEAiCjwhRE9DVFlQRSBodG1sPgo8aHRtbCBsYW5nPSJlbiI+CjxoZWFkPgo8bWV0YSBjaGFyc2V0PSJVVEYtOCI+CjxtZXRhIG5hbWU9InZpZXdwb3J0IiBjb250ZW50PSJ3aWR0aD1kZXZpY2Utd2lkdGgsIGluaXRpYWwtc2NhbGU9MSI+Cjx0aXRsZT5TaW1wbGUgRG9jdW1lbnRhdGlvbjwvdGl0bGU+CjxzdHlsZT4KYm9keSB7IGZvbnQtZmFtaWx5OiBTZWdvZSBVSSwgQXJpYWwsIHNhbnMtc2VyaWY7IG1heC13aWR0aDogODUwcHg7IG1hcmdpbjogNDhweCBhdXRvOyBwYWRkaW5nOiAwIDIycHg7IGxpbmUtaGVpZ2h0OiAxLjY7IGNvbG9yOiAjMjAyMTI0OyB9CmgxIHsgbWFyZ2luLWJvdHRvbTogNHB4OyB9IC5zdWIgeyBjb2xvcjogIzY2NjsgbWFyZ2luLXRvcDogMDsgfQpjb2RlIHsgYmFja2dyb3VuZDogI2YxZjNmNDsgcGFkZGluZzogM3B4IDZweDsgYm9yZGVyLXJhZGl1czogNHB4OyB9CnNlY3Rpb24geyBtYXJnaW4tdG9wOiAyOHB4OyB9ICN1cGRhdGVzIHsgcGFkZGluZzogMTJweCAxNnB4OyBiYWNrZ3JvdW5kOiAjZjRmNmY4OyBib3JkZXItcmFkaXVzOiA4cHg7IH0KPC9zdHlsZT4KPC9oZWFkPgo8Ym9keT4KPGgxPlNpbXBsZSBEb2N1bWVudGF0aW9uPC9oMT4KPHAgY2xhc3M9InN1YiI+QSBzbWFsbCBjb21tYW5kIGxhbmd1YWdlIGNyZWF0ZWQgYnkgS2VubnkuPC9wPgo8c2VjdGlvbj4KPGgyPkNvbW1hbmRzPC9oMj4KPHA+PGNvZGU+c2ltcGxlIHByaW50ICZsdDt0ZXh0Jmd0OzwvY29kZT4g4oCUIHByaW50cyB0ZXh0LjwvcD4KPHA+PGNvZGU+c2ltcGxlIHZlY3RvciBpcCAmbHQ7YWRkcmVzcyZndDs8L2NvZGU+IOKAlCBzdG9yZXMgdGhlIFZlY3RvciBJUCBhZGRyZXNzLjwvcD4KPHA+PGNvZGU+c2ltcGxlIG9wZW4gd2luZG93ICZsdDtIVE1MIGZpbGUgcGF0aCZndDs8L2NvZGU+IOKAlCBvcGVucyBhbiBIVE1MIGZpbGUgaW4gYSBTaW1wbGUgd2luZG93LjwvcD4KPHA+PGNvZGU+c2ltcGxlIGxvY2FsaG9zdCBzdGFydCAmbHQ7cG9ydCZndDs8L2NvZGU+IOKAlCBzdGFydHMgdGhpcyBsb2NhbGhvc3Qgc2VydmVyLjwvcD4KPHA+PGNvZGU+c2ltcGxlIGxvY2FsaG9zdCBzdG9wICZsdDtwb3J0Jmd0OzwvY29kZT4g4oCUIHN0b3BzIGEgbG9jYWxob3N0IHNlcnZlci48L3A+CjxwPjxjb2RlPnNpbXBsZSBsb2NhbGhvc3Qgc3RhdHVzICZsdDtwb3J0Jmd0OzwvY29kZT4g4oCUIGNoZWNrcyBhIGxvY2FsaG9zdCBzZXJ2ZXIuPC9wPgo8cD48Y29kZT5zaW1wbGUgdXBkYXRlPC9jb2RlPiDigJQgdXBkYXRlcyB0aGUgU0lNUExFIGNvbW1hbmQgc3lzdGVtLjwvcD4KPC9zZWN0aW9uPgo8c2VjdGlvbj4KPGgyPlNpbXBsZSBVcGRhdGVzPC9oMj4KPGRpdiBpZD0idXBkYXRlcyI+Q2hlY2tpbmcgZm9yIHVwZGF0ZSBpbmZvcm1hdGlvbi4uLjwvZGl2Pgo8L3NlY3Rpb24+CjxzY3JpcHQ+Cihhc3luYyBmdW5jdGlvbiAoKSB7CiAgY29uc3QgcGFuZWwgPSBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgidXBkYXRlcyIpOwogIHRyeSB7CiAgICBjb25zdCByZXNwb25zZSA9IGF3YWl0IGZldGNoKCJodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20va2Vubnltb25zdGVyNDU0L3NpbXBsZS9tYWluL3VwZGF0ZS5qc29uIiwgeyBjYWNoZTogIm5vLXN0b3JlIiB9KTsKICAgIGlmICghcmVzcG9uc2Uub2spIHRocm93IG5ldyBFcnJvcigiTm8gdXBkYXRlIGluZm9ybWF0aW9uIGlzIHB1Ymxpc2hlZCB5ZXQuIik7CiAgICBjb25zdCBkYXRhID0gYXdhaXQgcmVzcG9uc2UuanNvbigpOwogICAgaWYgKCFkYXRhLnZlcnNpb24gfHwgIUFycmF5LmlzQXJyYXkoZGF0YS51cGRhdGVzKSkgdGhyb3cgbmV3IEVycm9yKCJUaGUgdXBkYXRlIGluZm9ybWF0aW9uIGZpbGUgaXMgaW52YWxpZC4iKTsKICAgIGNvbnN0IGhlYWRpbmcgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCJzdHJvbmciKTsKICAgIGhlYWRpbmcudGV4dENvbnRlbnQgPSAiTGF0ZXN0IFNJTVBMRSB2ZXJzaW9uOiAiICsgZGF0YS52ZXJzaW9uOwogICAgcGFuZWwucmVwbGFjZUNoaWxkcmVuKGhlYWRpbmcpOwogICAgZGF0YS51cGRhdGVzLmZvckVhY2goZnVuY3Rpb24gKGl0ZW0pIHsKICAgICAgY29uc3QgZW50cnkgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCJwIik7CiAgICAgIGVudHJ5LnRleHRDb250ZW50ID0gaXRlbS5kYXRlID8gaXRlbS5kYXRlICsgIiDigJQgIiArIGl0ZW0uaW5mbyA6IGl0ZW0uaW5mbzsKICAgICAgcGFuZWwuYXBwZW5kQ2hpbGQoZW50cnkpOwogICAgfSk7CiAgfSBjYXRjaCAoZXJyb3IpIHsKICAgIHBhbmVsLnRleHRDb250ZW50ID0gZXJyb3IubWVzc2FnZTsKICB9Cn0pKCk7Cjwvc2NyaXB0Pgo8L2JvZHk+CjwvaHRtbD4KIkAKICAgICAgICAgICAgICAgIH0KCiAgICAgICAgICAgICAgICAkYnl0ZXMgPSBbU3lzdGVtLlRleHQuRW5jb2RpbmddOjpVVEY4LkdldEJ5dGVzKCRib2R5KQogICAgICAgICAgICAgICAgJGNybGYgPSBbc3RyaW5nXVtjaGFyXTEzICsgW3N0cmluZ11bY2hhcl0xMAogICAgICAgICAgICAgICAgJGhlYWRlciA9ICJIVFRQLzEuMSAyMDAgT0siICsgJGNybGYgKyAiQ29udGVudC1UeXBlOiB0ZXh0L2h0bWw7IGNoYXJzZXQ9dXRmLTgiICsgJGNybGYgKyAiQ29udGVudC1MZW5ndGg6ICQoJGJ5dGVzLkxlbmd0aCkiICsgJGNybGYgKyAiQ29ubmVjdGlvbjogY2xvc2UiICsgJGNybGYgKyAkY3JsZgogICAgICAgICAgICAgICAgJGhlYWRlckJ5dGVzID0gW1N5c3RlbS5UZXh0LkVuY29kaW5nXTo6QVNDSUkuR2V0Qnl0ZXMoJGhlYWRlcikKICAgICAgICAgICAgICAgICRzdHJlYW0uV3JpdGUoJGhlYWRlckJ5dGVzLCAwLCAkaGVhZGVyQnl0ZXMuTGVuZ3RoKQogICAgICAgICAgICAgICAgJHN0cmVhbS5Xcml0ZSgkYnl0ZXMsIDAsICRieXRlcy5MZW5ndGgpCiAgICAgICAgICAgICAgICAkc3RyZWFtLkZsdXNoKCkKICAgICAgICAgICAgfQogICAgICAgIH0KICAgICAgICBjYXRjaCB7fQogICAgICAgIGZpbmFsbHkgewogICAgICAgICAgICBpZiAoJHJlYWRlcikgeyAkcmVhZGVyLkRpc3Bvc2UoKSB9CiAgICAgICAgICAgICRjbGllbnQuQ2xvc2UoKQogICAgICAgIH0KICAgIH0KfQpjYXRjaCB7fQpmaW5hbGx5IHsKICAgIGlmICgkbGlzdGVuZXIpIHsgJGxpc3RlbmVyLlN0b3AoKSB9Cn0='))
-
-                $htmlEncoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($htmlPath))
-                $serverCode = ('$Port = ' + $port) + [Environment]::NewLine +
-                    ('$HtmlPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''{0}''))' -f $htmlEncoded) +
-                    [Environment]::NewLine + $serverCode
-                $encodedServer = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($serverCode))
-                $engine = Join-Path $PSHOME "powershell.exe"
-
-                try {
-                    $process = Start-Process -FilePath $engine -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand $encodedServer" -PassThru -WindowStyle Hidden -ErrorAction Stop
-                }
+                $serverCode = $serverCode.Replace('while ($true) {','while (!$State.StopRequested) { if (!$listener.Pending()) { Start-Sleep -Milliseconds 100; continue }')
+                $serverCode = $serverCode.Replace('$listener.Start()','$listener.Start()' + [Environment]::NewLine + '$State.Listener = $listener' + [Environment]::NewLine + 'Add-Content -LiteralPath $LogPath -Value ("[{0}] LISTENING 127.0.0.1:{1}" -f (Get-Date -Format o), $Port)')
+                $serverCode = $serverCode.Replace('$client = $listener.AcceptTcpClient()','$client = $listener.AcceptTcpClient()' + [Environment]::NewLine + 'Add-Content -LiteralPath $LogPath -Value ("[{0}] CONNECTION {1}" -f (Get-Date -Format o), $client.Client.RemoteEndPoint)')
+                $serverCode = $serverCode.Replace('$requestLine = $reader.ReadLine()','$requestLine = $reader.ReadLine()' + [Environment]::NewLine + 'Add-Content -LiteralPath $LogPath -Value ("[{0}] REQUEST {1}" -f (Get-Date -Format o), $requestLine)')
+                $serverCode = ('$Port = ' + $port) + [Environment]::NewLine + ('$HtmlPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''{0}''))' -f [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($htmlPath))) + [Environment]::NewLine + '$State = $args[0]' + [Environment]::NewLine + '$LogPath = $args[1]' + [Environment]::NewLine + $serverCode
+                $runspace = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+                $runspace.Open()
+                $runspace.SessionStateProxy.SetVariable("Port",$port)
+                $runspace.SessionStateProxy.SetVariable("HtmlPath",$htmlPath)
+                $runspace.SessionStateProxy.SetVariable("State",$state)
+                $runspace.SessionStateProxy.SetVariable("LogPath",$logPath)
+                $powerShell = [PowerShell]::Create()
+                $powerShell.Runspace = $runspace
+                [void]$powerShell.AddScript($serverCode)
+                try { $async = $powerShell.BeginInvoke() }
                 catch {
-                    Write-Host "Could not launch localhost: $($_.Exception.Message)"
+                    $powerShell.Dispose(); $runspace.Dispose()
+                    Add-Content -LiteralPath $logPath -Value ("[{0}] START ERROR {1}" -f (Get-Date -Format o), $_.Exception.Message)
+                    Write-Host "Could not start localhost: $($_.Exception.Message)"
                     return
                 }
-
-                $ready = $false
-                for ($i = 0; $i -lt 50; $i++) {
+                $ready=$false
+                for($i=0;$i -lt 50;$i++){
                     Start-Sleep -Milliseconds 100
-                    if ($process.HasExited) { break }
-
-                    $probe = [System.Net.Sockets.TcpClient]::new()
-                    try {
-                        $probe.Connect("127.0.0.1", $port)
-                        $ready = $true
-                        break
-                    }
-                    catch {}
-                    finally {
-                        $probe.Dispose()
-                    }
+                    if($async.IsCompleted){break}
+                    $probe=[System.Net.Sockets.TcpClient]::new()
+                    try{$probe.Connect("127.0.0.1",$port);$ready=$true;break}catch{}finally{$probe.Dispose()}
                 }
-
-                if (!$ready) {
-                    if (!$process.HasExited) {
-                        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-                    }
-                    Write-Host "Server failed to start. The process did not open port $port."
+                if(!$ready){
+                    $state.StopRequested=$true
+                    if($state.Listener){try{$state.Listener.Stop()}catch{}}
+                    try{$powerShell.EndInvoke($async)}catch{}
+                    $powerShell.Dispose();$runspace.Dispose()
+                    Add-Content -LiteralPath $logPath -Value ("[{0}] START FAILED" -f (Get-Date -Format o))
+                    Write-Host "Server failed to start. Log: $logPath"
+                    if(Test-Path -LiteralPath $logPath){Get-Content -LiteralPath $logPath -Tail 12}
                     return
                 }
-
-                $global:SimpleServers[$port] = $process
+                $global:SimpleServers[$port]=@{PowerShell=$powerShell;Runspace=$runspace;Async=$async;State=$state;LogPath=$logPath}
                 Write-Host "Simple localhost started!"
                 Write-Host "Port: $port"
                 Write-Host "Address: http://localhost:$port"
+                Write-Host "Local log: $logPath"
+                Add-Content -LiteralPath $logPath -Value ("[{0}] SERVER STARTED" -f (Get-Date -Format o))
                 Start-Process "http://localhost:$port"
             }
             elseif ($action -eq "stop") {
@@ -252,12 +255,15 @@ function simple {
                     return
                 }
 
-                $process = $global:SimpleServers[$port]
-                if (!$process.HasExited) {
-                    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-                }
+                $server=$global:SimpleServers[$port]
+                $server.State.StopRequested=$true
+                if($server.State.Listener){try{$server.State.Listener.Stop()}catch{}}
+                try{$server.PowerShell.EndInvoke($server.Async)}catch{}
+                Add-Content -LiteralPath $server.LogPath -Value ("[{0}] SERVER STOPPED" -f (Get-Date -Format o))
+                $server.PowerShell.Dispose();$server.Runspace.Dispose()
                 $global:SimpleServers.Remove($port)
                 Write-Host "Simple localhost stopped on port $port."
+                Write-Host "Local log: $($server.LogPath)"
             }
             elseif ($action -eq "status") {
                 if (!$global:SimpleServers.ContainsKey($port)) {
@@ -265,31 +271,18 @@ function simple {
                     return
                 }
 
-                $process = $global:SimpleServers[$port]
-                if ($process.HasExited) {
+                $server=$global:SimpleServers[$port]
+                if($server.Async.IsCompleted){
+                    try{$server.PowerShell.EndInvoke($server.Async)}catch{}
+                    $server.PowerShell.Dispose();$server.Runspace.Dispose()
                     $global:SimpleServers.Remove($port)
-                    Write-Host "Simple localhost is NOT running on port $port."
+                    Write-Host "Simple localhost is NOT running on port $port. Log: $($server.LogPath)"
                     return
                 }
-
-                $probe = [System.Net.Sockets.TcpClient]::new()
-                $connected = $false
-                try {
-                    $probe.Connect("127.0.0.1", $port)
-                    $connected = $true
-                }
-                catch {}
-                finally {
-                    $probe.Dispose()
-                }
-
-                if ($connected) {
-                    Write-Host "Simple localhost is RUNNING!"
-                    Write-Host "http://localhost:$port"
-                }
-                else {
-                    Write-Host "Server process exists but is not accepting connections."
-                }
+                $probe=[System.Net.Sockets.TcpClient]::new();$connected=$false
+                try{$probe.Connect("127.0.0.1",$port);$connected=$true}catch{}finally{$probe.Dispose()}
+                if($connected){Write-Host "Simple localhost is RUNNING!";Write-Host "http://localhost:$port"}else{Write-Host "Server runspace exists but is not accepting connections."}
+                Write-Host "Log: $($server.LogPath)"
             }
             else {
                 Write-Host "Unknown localhost command."
