@@ -14,14 +14,51 @@ function simple {
     $repository = "kennymonster454/simple"
     $updateUrl = "https://raw.githubusercontent.com/$repository/main/Microsoft.PowerShell_profile.ps1"
 
-    # SIMPLE English interpreter and .smp script runner (Windows PowerShell 5.1 compatible).
-    if ($SimpleArgs.Count -ge 2 -and $SimpleArgs[0].ToLower() -eq "run") {
-        $scriptPath = ($SimpleArgs[1..($SimpleArgs.Count - 1)] -join " ").Trim('"')
-        if (!(Test-Path -LiteralPath $scriptPath -PathType Leaf) -or [IO.Path]::GetExtension($scriptPath).ToLower() -ne ".smp") { Write-Host "SMP file not found or not a .smp file."; return }
-        $scriptLines = Get-Content -LiteralPath $scriptPath
-        foreach ($scriptLine in $scriptLines) { $trimmedLine = $scriptLine.Trim(); if ($trimmedLine -and !$trimmedLine.StartsWith("#")) { Write-Host ("> " + $trimmedLine) -ForegroundColor DarkGray; simple $trimmedLine } }
+    # SIMPLE English interpreter and .smp script runner (Windows PowerShell 5.1).
+    if ($SimpleArgs.Count -ge 2 -and $SimpleArgs[0].ToLowerInvariant() -eq "run") {
+        $scriptPath = ($SimpleArgs[1..($SimpleArgs.Count - 1)] -join " ").Trim().Trim('"')
+        if ([IO.Path]::GetExtension($scriptPath).ToLowerInvariant() -ne ".smp" -or !(Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
+            Write-Host "SMP file not found or not a .smp file."
+            return
+        }
+        try {
+            foreach ($scriptLine in [IO.File]::ReadAllLines((Resolve-Path -LiteralPath $scriptPath).Path)) {
+                $trimmedLine = $scriptLine.Trim()
+                if ($trimmedLine -and !$trimmedLine.StartsWith("#")) {
+                    Write-Host ("> " + $trimmedLine) -ForegroundColor DarkGray
+                    simple $trimmedLine
+                }
+            }
+        } catch {
+            Write-Host "Could not run SMP file: $($_.Exception.Message)"
+        }
         return
     }
+
+    # Correct only command words at the start; never rewrite paths, names, or say-text.
+    if ($SimpleArgs.Count -gt 0 -and $SimpleArgs[0] -notmatch '^(?i)say$') {
+        $fixes = @{
+            "shwo"="show"; "sho"="show"; "opn"="open"; "opne"="open";
+            "flies"="files"; "fiels"="files"; "drivs"="drives";
+            "foldrs"="folders"; "folers"="folders"; "progams"="programs";
+            "calclator"="calculator"; "calculater"="calculator";
+            "notpad"="notepad"; "creat"="create"; "foler"="folder";
+            "tim"="time"; "comand"="command"; "comands"="commands"
+        }
+        $firstWord = $SimpleArgs[0].ToLowerInvariant()
+        if ($fixes.ContainsKey($firstWord)) {
+            $SimpleArgs[0] = $fixes[$firstWord]
+            Write-Host ("SIMPLE spelling fix: " + $firstWord + " -> " + $SimpleArgs[0]) -ForegroundColor Yellow
+        }
+        if ($SimpleArgs.Count -gt 1 -and $SimpleArgs[0].ToLowerInvariant() -in @("show","open","go","create")) {
+            $secondWord = $SimpleArgs[1].ToLowerInvariant()
+            if ($fixes.ContainsKey($secondWord)) {
+                $SimpleArgs[1] = $fixes[$secondWord]
+                Write-Host ("SIMPLE spelling fix: " + $secondWord + " -> " + $SimpleArgs[1]) -ForegroundColor Yellow
+            }
+        }
+    }
+
     $english = ($SimpleArgs -join " ").Trim()
     if ($english -match '^(?i)(help|show commands)$') {
         Write-Host "SIMPLE ENGLISH COMMANDS"
@@ -29,32 +66,102 @@ function simple {
         Write-Host "show files in D: | show folders in C: | show running programs"
         Write-Host "open C: | go to D: | open notepad | open calculator"
         Write-Host "create a folder called Games in D: | what time is it"
+        Write-Host "find a file called test.txt in F:"
         Write-Host "show my computer info | show wifi status | say hello | clear screen"
         Write-Host "simple run C:\path\script.smp"
         Write-Host "Existing: simple print, vector ip, open window, localhost, update, update timeline"
         return
     }
-    if ($english -match '^(?i)(show my drives|show drives)$') { Get-PSDrive -PSProvider FileSystem | Select-Object Name,Root,Used,Free | Format-Table -AutoSize; return }
-    if ($english -match '^(?i)(show my files|show files)$') { Get-ChildItem -Force | Select-Object Mode,Length,Name | Format-Table -AutoSize; return }
-    if ($english -match '^(?i)show files in ([A-Za-z]:)$') { $p=$matches[1]+"\\"; if(Test-Path -LiteralPath $p){Get-ChildItem -LiteralPath $p -Force | Select-Object Mode,Length,Name | Format-Table -AutoSize}else{Write-Host "Drive unavailable: $p"}; return }
-    if ($english -match '^(?i)show folders in ([A-Za-z]:)$') { $p=$matches[1]+"\\"; if(Test-Path -LiteralPath $p){Get-ChildItem -LiteralPath $p -Directory -Force | Select-Object Name,FullName | Format-Table -AutoSize}else{Write-Host "Drive unavailable: $p"}; return }
-    if ($english -match '^(?i)(show my folders|show folders)$') { Get-ChildItem -Directory -Force | Select-Object Name,FullName | Format-Table -AutoSize; return }
-    if ($english -match '^(?i)(show running programs|show my programs)$') { Get-Process | Sort-Object ProcessName | Select-Object ProcessName,Id | Format-Table -AutoSize; return }
-    if ($english -match '^(?i)open ([A-Za-z]:)$') { $p=$matches[1]+"\\"; if(Test-Path -LiteralPath $p){Start-Process explorer.exe -ArgumentList $p}else{Write-Host "Drive unavailable: $p"}; return }
-    if ($english -match '^(?i)go to ([A-Za-z]:)$') { $p=$matches[1]+"\\"; if(Test-Path -LiteralPath $p){Set-Location -LiteralPath $p; Write-Host "Current folder: $((Get-Location).Path)"}else{Write-Host "Drive unavailable: $p"}; return }
-    if ($english -match '^(?i)create a folder called (.+?)(?: in ([A-Za-z]:))?$') { $n=$matches[1].Trim().Trim('"'); $root=if($matches[2]){$matches[2]+"\\"}else{(Get-Location).Path}; if($n -match '[\\/:*?"<>|]' -or !$n){Write-Host "Invalid folder name."}elseif(!(Test-Path -LiteralPath $root -PathType Container)){Write-Host "Location unavailable: $root"}else{$dest=Join-Path $root $n; if(Test-Path -LiteralPath $dest){Write-Host "Already exists: $dest"}else{New-Item -ItemType Directory -Path $dest -ErrorAction Stop | Out-Null; Write-Host "Created: $dest"}}; return }
-    if ($english -match '^(?i)open notepad$') { Start-Process notepad.exe; return }
-    if ($english -match '^(?i)open calculator$') { Start-Process calc.exe; return }
+    if ($english -match '^(?i)(show my drives|show drives)$') {
+        Get-PSDrive -PSProvider FileSystem | Select-Object Name,Root,Used,Free | Format-Table -AutoSize
+        return
+    }
+    if ($english -match '^(?i)(show my files|show files)$') {
+        Get-ChildItem -LiteralPath (Get-Location).Path -Force -ErrorAction SilentlyContinue | Select-Object Mode,Length,Name | Format-Table -AutoSize
+        return
+    }
+    if ($english -match '^(?i)show files in ([A-Za-z]:)$') {
+        $driveRoot = $matches[1] + "\"
+        if (Test-Path -LiteralPath $driveRoot -PathType Container) {
+            Get-ChildItem -LiteralPath $driveRoot -Force -ErrorAction SilentlyContinue | Select-Object Mode,Length,Name | Format-Table -AutoSize
+        } else { Write-Host "Drive unavailable: $driveRoot" }
+        return
+    }
+    if ($english -match '^(?i)show folders in ([A-Za-z]:)$') {
+        $driveRoot = $matches[1] + "\"
+        if (Test-Path -LiteralPath $driveRoot -PathType Container) {
+            Get-ChildItem -LiteralPath $driveRoot -Directory -Force -ErrorAction SilentlyContinue | Select-Object Name,FullName | Format-Table -AutoSize
+        } else { Write-Host "Drive unavailable: $driveRoot" }
+        return
+    }
+    if ($english -match '^(?i)(show my folders|show folders)$') {
+        Get-ChildItem -LiteralPath (Get-Location).Path -Directory -Force -ErrorAction SilentlyContinue | Select-Object Name,FullName | Format-Table -AutoSize
+        return
+    }
+    if ($english -match '^(?i)(show running programs|show my programs)$') {
+        Get-Process | Sort-Object ProcessName | Select-Object ProcessName,Id | Format-Table -AutoSize
+        return
+    }
+    if ($english -match '^(?i)open ([A-Za-z]:)$') {
+        $driveRoot = $matches[1] + "\"
+        if (Test-Path -LiteralPath $driveRoot -PathType Container) { Start-Process -FilePath explorer.exe -ArgumentList $driveRoot }
+        else { Write-Host "Drive unavailable: $driveRoot" }
+        return
+    }
+    if ($english -match '^(?i)go to ([A-Za-z]:)$') {
+        $driveRoot = $matches[1] + "\"
+        if (Test-Path -LiteralPath $driveRoot -PathType Container) {
+            Set-Location -LiteralPath $driveRoot
+            Write-Host ("Current folder: " + (Get-Location).Path)
+        } else { Write-Host "Drive unavailable: $driveRoot" }
+        return
+    }
+    if ($english -match '^(?i)create a folder called (.+?)(?: in ([A-Za-z]:))?$') {
+        $folderName = $matches[1].Trim().Trim('"')
+        $targetRoot = if ($matches[2]) { $matches[2] + "\" } else { (Get-Location).Path }
+        if ([string]::IsNullOrWhiteSpace($folderName) -or $folderName -match '[\\/:*?"<>|]') {
+            Write-Host "Invalid folder name."
+        } elseif (!(Test-Path -LiteralPath $targetRoot -PathType Container)) {
+            Write-Host "Location unavailable: $targetRoot"
+        } else {
+            $targetPath = Join-Path -Path $targetRoot -ChildPath $folderName
+            if (Test-Path -LiteralPath $targetPath) { Write-Host "Already exists: $targetPath" }
+            else {
+                try {
+                    New-Item -ItemType Directory -Path $targetPath -ErrorAction Stop | Out-Null
+                    Write-Host "Created: $targetPath"
+                } catch { Write-Host "Could not create folder: $($_.Exception.Message)" }
+            }
+        }
+        return
+    }
+    if ($english -match '^(?i)find a file called (.+?) in ([A-Za-z]:)$') {
+        $fileName = $matches[1].Trim().Trim('"')
+        $searchRoot = $matches[2] + "\"
+        if (!(Test-Path -LiteralPath $searchRoot -PathType Container)) { Write-Host "Drive unavailable: $searchRoot" }
+        elseif ([string]::IsNullOrWhiteSpace($fileName) -or $fileName -match '[\\/:*?"<>|]') { Write-Host "Invalid file name." }
+        else {
+            Get-ChildItem -LiteralPath $searchRoot -File -Filter $fileName -Recurse -ErrorAction SilentlyContinue |
+                Select-Object -First 100 FullName
+        }
+        return
+    }
+    if ($english -match '^(?i)open notepad$') { Start-Process -FilePath notepad.exe; return }
+    if ($english -match '^(?i)open calculator$') { Start-Process -FilePath calc.exe; return }
     if ($english -match '^(?i)(what time is it|show the time)$') { Get-Date; return }
-    if ($english -match '^(?i)show my computer info$') { Get-CimInstance Win32_OperatingSystem | Select-Object Caption,Version,OSArchitecture | Format-List; Get-CimInstance Win32_Processor | Select-Object Name,NumberOfCores | Format-List; return }
-    if ($english -match '^(?i)show wifi status$') { if(Get-Command Get-NetAdapter -ErrorAction SilentlyContinue){Get-NetAdapter | Where-Object {$_.Name -match "Wi-?Fi|Wireless"} | Select-Object Name,Status,LinkSpeed | Format-Table -AutoSize}else{netsh wlan show interfaces}; return }
-    if ($english -match '^(?i)say (.+)$') { Write-Host $matches[1]; return }
+    if ($english -match '^(?i)show my computer info$') {
+        try { Get-CimInstance Win32_OperatingSystem | Select-Object Caption,Version,OSArchitecture | Format-List } catch { Write-Host "Could not read Windows information." }
+        try { Get-CimInstance Win32_Processor | Select-Object Name,NumberOfCores | Format-List } catch { Write-Host "Could not read processor information." }
+        return
+    }
+    if ($english -match '^(?i)show wifi status$') {
+        if (Get-Command Get-NetAdapter -ErrorAction SilentlyContinue) {
+            Get-NetAdapter | Where-Object { $_.Name -match "Wi-?Fi|Wireless" } | Select-Object Name,Status,LinkSpeed | Format-Table -AutoSize
+        } else { netsh wlan show interfaces }
+        return
+    }
+    if ($english -match '^(?i)say (.*)$') { Write-Host $matches[1]; return }
     if ($english -match '^(?i)clear screen$') { Clear-Host; return }
-    # Correct common misspellings only in recognized SIMPLE command words; never alter paths or say-text.
-    $fixes = @{ "flies"="files"; "drivs"="drives"; "foldrs"="folders"; "progams"="programs"; "calclator"="calculator"; "notpad"="notepad"; "creat"="create"; "foler"="folder"; "opn"="open"; "shwo"="show"; "tim"="time" }
-    $first = $SimpleArgs[0].ToLower(); if ($fixes.ContainsKey($first)) { $SimpleArgs[0]=$fixes[$first]; Write-Host ("SIMPLE spelling fix: " + $first + " -> " + $SimpleArgs[0]) -ForegroundColor Yellow }
-    $second = if($SimpleArgs.Count -gt 1){$SimpleArgs[1].ToLower()}else{""}; if($fixes.ContainsKey($second)){ $SimpleArgs[1]=$fixes[$second]; Write-Host ("SIMPLE spelling fix: " + $second + " -> " + $SimpleArgs[1]) -ForegroundColor Yellow }
-
     if (!$SimpleArgs) {
         Write-Host "SIMPLE COMMANDS"
         Write-Host "simple print <text>"
