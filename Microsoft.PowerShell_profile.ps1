@@ -1,6 +1,6 @@
 # SIMPLE LANGUAGE
 # SIMPLE COMMAND SYSTEM - CREATED BY KENNY
-# VERSION 3.6.2
+# VERSION 3.6.3
 function simple {
     param(
         [Parameter(ValueFromRemainingArguments=$true)]
