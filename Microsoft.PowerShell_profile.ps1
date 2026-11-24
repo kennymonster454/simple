@@ -24,6 +24,7 @@ function simple {
         Write-Host "simple localhost status <port>"
         Write-Host "simple update"
         Write-Host "simple update localhost <port>"
+        Write-Host "simple update timeline"
         return
     }
 
@@ -94,6 +95,96 @@ function simple {
         }
 
         "update" {
+            if ($SimpleArgs.Count -ge 2 -and $SimpleArgs[1].ToLower() -eq "timeline") {
+                Write-Host "Loading SIMPLE version timeline..."
+                try {
+                    $historyUrl = "https://api.github.com/repos/kennymonster454/simple/commits?path=Microsoft.PowerShell_profile.ps1&per_page=100"
+                    $history = Invoke-RestMethod -Uri $historyUrl -Headers @{
+                        "User-Agent" = "SIMPLE-Updater"
+                        "Accept" = "application/vnd.github+json"
+                    } -ErrorAction Stop
+
+                    if (!$history -or $history.Count -eq 0) {
+                        throw "GitHub returned no version history."
+                    }
+
+                    $choices = @()
+                    foreach ($entry in $history) {
+                        if (!$entry.sha) { continue }
+                        $shortSha = ([string]$entry.sha).Substring(0, 7)
+                        $message = ([string]$entry.commit.message -split [char]10)[0]
+                        $date = ([DateTime]$entry.commit.author.date).ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                        $choices += [PSCustomObject]@{
+                            Sha = [string]$entry.sha
+                            ShortSha = $shortSha
+                            Message = $message
+                            Date = $date
+                        }
+                    }
+
+                    Write-Host ""
+                    Write-Host "SIMPLE VERSION TIMELINE"
+                    for ($i = 0; $i -lt $choices.Count; $i++) {
+                        Write-Host ("[{0}] {1} | {2} | {3}" -f ($i + 1), $choices[$i].Date, $choices[$i].ShortSha, $choices[$i].Message)
+                    }
+                    Write-Host "[0] Cancel"
+                    $selection = Read-Host "Choose a version"
+                    if ($selection -eq "0" -or [string]::IsNullOrWhiteSpace($selection)) {
+                        Write-Host "Cancelled."
+                        return
+                    }
+
+                    $number = 0
+                    if (![int]::TryParse($selection, [ref]$number) -or $number -lt 1 -or $number -gt $choices.Count) {
+                        throw "That is not a valid timeline number."
+                    }
+
+                    $chosen = $choices[$number - 1]
+                    $historicalUrl = "https://raw.githubusercontent.com/kennymonster454/simple/$($chosen.Sha)/Microsoft.PowerShell_profile.ps1"
+                    $historicalResponse = Invoke-WebRequest -Uri $historicalUrl -UseBasicParsing -ErrorAction Stop
+                    $historicalCode = [string]$historicalResponse.Content
+
+                    if ([string]::IsNullOrWhiteSpace($historicalCode) -or
+                        $historicalCode -notmatch '(?m)^#\s*VERSION\s+\S+' -or
+                        $historicalCode -notmatch '(?im)^function\s+simple\b') {
+                        throw "That commit is not a SIMPLE profile."
+                    }
+
+                    $tokens = $null
+                    $parseErrors = $null
+                    [void][System.Management.Automation.Language.Parser]::ParseInput($historicalCode, [ref]$tokens, [ref]$parseErrors)
+                    if ($parseErrors.Count -gt 0) {
+                        throw "That saved version has a PowerShell syntax error: $($parseErrors[0].Message)"
+                    }
+
+                    $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+                    $timelineBackup = "$profilePath.timeline-$stamp.backup"
+                    $timelineTemp = "$profilePath.timeline-$stamp.tmp"
+                    Copy-Item -LiteralPath $profilePath -Destination $timelineBackup -Force -ErrorAction Stop
+                    [System.IO.File]::WriteAllText($timelineTemp, $historicalCode, (New-Object System.Text.UTF8Encoding($true)))
+
+                    try {
+                        [System.IO.File]::Copy($timelineTemp, $profilePath, $true)
+                        . $profilePath
+                    }
+                    catch {
+                        [System.IO.File]::Copy($timelineBackup, $profilePath, $true)
+                        throw
+                    }
+                    finally {
+                        Remove-Item -LiteralPath $timelineTemp -Force -ErrorAction SilentlyContinue
+                    }
+
+                    Write-Host "Restored SIMPLE version $($chosen.ShortSha)."
+                    Write-Host "Backup: $timelineBackup"
+                    Write-Host "Use 'simple update' to return to the latest version."
+                }
+                catch {
+                    Write-Host "Timeline failed: $($_.Exception.Message)" -ForegroundColor Red
+                }
+                return
+            }
+
             $startLocalhost = $false
             $startPort = 0
 
