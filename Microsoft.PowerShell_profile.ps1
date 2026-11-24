@@ -18,6 +18,7 @@ function simple {
         Write-Host "SIMPLE COMMANDS"
         Write-Host "simple print <text>"
         Write-Host "simple vector ip <address>"
+        Write-Host "simple open window <HTML file path>"
         Write-Host "simple localhost start <port>"
         Write-Host "simple localhost stop <port>"
         Write-Host "simple localhost status <port>"
@@ -40,6 +41,54 @@ function simple {
             }
             else {
                 Write-Host "Usage: simple vector ip <address>"
+            }
+        }
+
+        "open" {
+            if ($SimpleArgs.Count -lt 3 -or $SimpleArgs[1].ToLower() -ne "window") {
+                Write-Host "Usage: simple open window <HTML file path>"
+                return
+            }
+
+            $htmlPath = ($SimpleArgs[2..($SimpleArgs.Count - 1)] -join " ").Trim('"')
+
+            if (!(Test-Path -LiteralPath $htmlPath -PathType Leaf)) {
+                Write-Host "HTML file not found: $htmlPath"
+                return
+            }
+
+            $resolvedPath = (Resolve-Path -LiteralPath $htmlPath).Path
+            if ([IO.Path]::GetExtension($resolvedPath).ToLower() -notin @(".html", ".htm")) {
+                Write-Host "Please select an .html or .htm file."
+                return
+            }
+
+            try {
+                Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+                Add-Type -AssemblyName System.Drawing -ErrorAction Stop
+
+                [System.Windows.Forms.Application]::EnableVisualStyles()
+
+                $window = New-Object System.Windows.Forms.Form
+                $window.Text = "Simple Window"
+                $window.StartPosition = "CenterScreen"
+                $window.Size = New-Object System.Drawing.Size(1000, 700)
+                $window.MinimumSize = New-Object System.Drawing.Size(400, 300)
+
+                $viewer = New-Object System.Windows.Forms.WebBrowser
+                $viewer.Dock = [System.Windows.Forms.DockStyle]::Fill
+                $viewer.ScriptErrorsSuppressed = $true
+                $viewer.IsWebBrowserContextMenuEnabled = $true
+                $viewer.WebBrowserShortcutsEnabled = $true
+                $window.Controls.Add($viewer)
+
+                $viewer.Navigate(([Uri]$resolvedPath).AbsoluteUri)
+                [void]$window.ShowDialog()
+                $window.Dispose()
+                $viewer.Dispose()
+            }
+            catch {
+                Write-Host "Could not open the Simple window: $($_.Exception.Message)"
             }
         }
 
