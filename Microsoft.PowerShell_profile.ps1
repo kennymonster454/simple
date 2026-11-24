@@ -1,6 +1,6 @@
 # SIMPLE LANGUAGE
 # SIMPLE COMMAND SYSTEM - CREATED BY KENNY
-# VERSION 2.4
+# VERSION 2.5
 
 function simple {
     param(
@@ -152,6 +152,13 @@ function simple {
         }
 
         "localhost" {
+            Write-Host ""
+            Write-Host "SIMPLE LOCALHOST IS CURRENTLY NOT WORKING." -ForegroundColor Yellow
+            Write-Host "The localhost feature is under development and is being rebuilt." -ForegroundColor Yellow
+            Write-Host "Please check the SIMPLE GitHub repository for updates." 
+            Write-Host ""
+            return
+
             if ($SimpleArgs.Count -lt 3) {
                 Write-Host "Usage: simple localhost start/stop/status <port>"
                 return
