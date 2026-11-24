@@ -1,6 +1,6 @@
 # SIMPLE LANGUAGE
 # SIMPLE COMMAND SYSTEM - CREATED BY KENNY
-# VERSION 3.5.2
+# VERSION 3.5.3
 function simple {
     param(
         [Parameter(ValueFromRemainingArguments=$true)]
@@ -624,10 +624,15 @@ function simple {
                         throw "The installed profile did not match the verified download."
                     }
 
-                    . $profilePath
                     Write-Host "Simple updated from $installedVersion to $onlineVersion!"
                     $updateSucceeded = $true
                 }
+
+                # Reload the profile in this function scope, then promote the new
+                # SIMPLE function into global scope so it survives this call.
+                . $profilePath
+                $reloadedSimple = Get-Item -Path Function:\simple -ErrorAction Stop
+                Set-Item -Path Function:\global:simple -Value $reloadedSimple.ScriptBlock -ErrorAction Stop
             }
             catch {
                 Write-Host "Update failed: $($_.Exception.Message)" -ForegroundColor Red
