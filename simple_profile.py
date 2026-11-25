@@ -311,7 +311,7 @@ def _update():
         if not new_code.strip() or not re.search(r"(?m)^# VERSION \S+", new_code) or "def simple(" not in new_code:
             raise RuntimeError("The downloaded file is not a valid SIMPLE Python profile.")
         compile(new_code, PYTHON_FILE, "exec")
-        match = re.search(r"(?m)^# VERSION (.+?)\\s*$", new_code)
+        match = re.search(r"(?m)^# VERSION (.+?)\s*$", new_code)
         online_version = match.group(1).strip() if match else "unknown"
         installed_code = target.read_text(encoding="utf-8")
         installed_match = re.search(r"(?m)^# VERSION (.+?)\\s*$", installed_code)
@@ -481,7 +481,7 @@ def simple(*raw_args):
         _run_file(" ".join(args[1:]))
         return
 
-    game_match = re.match(r"make (?:me )?(?:a )?(?:(2\\.5d|2d)\\s+)?game(?:\\s+where)?\\s+(.+)", english, re.I)
+    game_match = re.match(r"make (?:me )?(?:a )?(?:(2\.5d|2d)\s+)?game(?:\s+where)?\s+(.+)", english, re.I)
     if game_match:
         _make_game(game_match.group(2), game_match.group(1) or "")
         return
