@@ -314,7 +314,7 @@ def _update():
         match = re.search(r"(?m)^# VERSION (.+?)\s*$", new_code)
         online_version = match.group(1).strip() if match else "unknown"
         installed_code = target.read_text(encoding="utf-8")
-        installed_match = re.search(r"(?m)^# VERSION (.+?)\\s*$", installed_code)
+        installed_match = re.search(r"(?m)^# VERSION (.+?)\s*$", installed_code)
         installed_version = installed_match.group(1).strip() if installed_match else VERSION
         if installed_code.replace("\\r\\n", "\\n").rstrip() == new_code.replace("\\r\\n", "\\n").rstrip():
             _print(f"Simple {installed_version} is already up to date.")
